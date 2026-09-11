@@ -173,15 +173,26 @@ function VillageJediManagerCommon.getActiveQuestIdThisPhase(pPlayer)
 	return tonumber(questId)
 end
 
+-- NON-STOCK: multiple branch unlocks per phase.
+-- Stock Core3 allows one village quest per player per phase; every quest giver
+-- calls this as a refusal gate, so completing one quest locked the player out
+-- until the next phase change. Returning false lifts the per-phase cap while
+-- hasActiveQuestThisPhase still enforces one quest at a time (village:activeQuestName
+-- is a single slot, so concurrent quests would clobber each other).
+-- Restore stock behaviour by deleting the early return below.
 function VillageJediManagerCommon.hasCompletedQuestThisPhase(pPlayer)
 	if (pPlayer == nil) then
 		return false
 	end
 
+	return false
+
+	--[[
 	local phaseID = VillageJediManagerTownship:getCurrentPhaseID()
 	local lastCompletedQuest = tonumber(getQuestStatus(SceneObject(pPlayer):getObjectID() .. ":village:lastCompletedQuest"))
 
 	return phaseID == lastCompletedQuest
+	--]]
 end
 
 function VillageJediManagerCommon.setCompletedQuestThisPhase(pPlayer)
@@ -193,6 +204,13 @@ function VillageJediManagerCommon.setCompletedQuestThisPhase(pPlayer)
 	VillageJediManagerCommon.removeFromActiveQuestList(pPlayer)
 	removeQuestStatus(SceneObject(pPlayer):getObjectID() .. ":village:activeQuestName")
 	setQuestStatus(SceneObject(pPlayer):getObjectID() .. ":village:lastCompletedQuest", phaseID)
+
+	-- NON-STOCK: required by the per-phase cap removal in hasCompletedQuestThisPhase.
+	-- Stock code leaves lastActiveQuest set to this phase after a completion and
+	-- relies on the completion gate to stop further quests. With that gate lifted,
+	-- a stale lastActiveQuest would make hasActiveQuestThisPhase report an active
+	-- quest forever, blocking every quest giver for the rest of the phase.
+	removeQuestStatus(SceneObject(pPlayer):getObjectID() .. ":village:lastActiveQuest")
 end
 
 function VillageJediManagerCommon.createNewActiveQuestList()
