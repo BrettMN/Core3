@@ -16,6 +16,37 @@ If you have any questions, need support, or want to contribute to the SWGEmu pro
 
 If you have docker (i.e. Linux docker daemon, Windows/MacOS [Docker Desktop](https://www.docker.com/products/docker-desktop/)) you can run the entire development environment and server in a container.
 
+### Windows quick start (no WSL setup required)
+
+Docker Desktop's WSL2 backend runs in its own auto-managed distro, so you do not
+need to install or configure a WSL instance of your own. From PowerShell:
+
+```
+cd docker
+.\core3.ps1
+```
+
+That single command starts Docker Desktop if it is not running, sets the Docker
+VM to 16GB RAM and 16 CPUs, builds the image, copies your client `.tre` files
+into the `shared-tre` volume, then creates the container and drops you into its
+shell. Point it at your client with `-TrePath "C:\path\to\SWGEmu"` if the default
+(`C:\Programs\SWGEmu`) is wrong, and change the VM sizing with `-MemoryGB` /
+`-Processors`.
+
+Other actions: `.\core3.ps1 shell` (extra shell in the running container),
+`stop`, `logs`, `rebuild` (rebuild the image), `reset` (discard the container's
+build tree and database and start over).
+
+The container builds from a git clone of your checkout made *inside* the
+container rather than from a bind mount, because a Windows working tree with
+`core.autocrlf=true` has CRLF line endings that will not build under Linux, and
+because keeping build output on a Linux-native volume is far faster. The
+consequence is that **only committed work reaches the container** — commit on the
+host, then run `sync` inside the container to fast-forward its tree.
+
+If Docker Desktop is on the Hyper-V backend instead, `.wslconfig` does not apply;
+set memory under Settings > Resources and the script will tell you so.
+
 ### Setup
 
 The docker build creates a container that includes everything needed to run the core3 engine except you need the tre files from the client.
@@ -74,6 +105,16 @@ Inside the container type:
 
 ```
 run
+```
+
+#### Pull in new host commits
+
+If the container was created from a local checkout (the Windows quick start
+above, or any run with `REPO_LOCAL_PATH` set), commit on the host and then, inside
+the container, type:
+
+```
+sync
 ```
 
 ## Windows Subsystem for Linux Setup

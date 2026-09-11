@@ -63,18 +63,50 @@ core3_init_home() {
 }
 
 core3_clone() {
-    if [ -z "${REPO_PUBLIC_URL}" ]; then
+    # REPO_LOCAL_PATH points at a read-only bind mount of a host Core3 checkout.
+    # We clone from it rather than building in it: a Windows host working tree can
+    # have CRLF line endings (core.autocrlf=true), which break the Linux build.
+    # Cloning re-checks-out the tree inside the container with LF endings and keeps
+    # all build output on the container volume instead of a slow host bind mount.
+    if [ -n "${REPO_LOCAL_PATH}" ] && [ -e "${REPO_LOCAL_PATH}/.git" ]; then
+        # The bind mount is owned by a uid that exists only on the host, so git
+        # refuses it as "dubious ownership". Mark it safe system-wide: firstboot
+        # runs as root but ~/bin/sync later runs as ${RUN_USER}.
+        git config --system --add safe.directory "${REPO_LOCAL_PATH}"
+        git config --system --add safe.directory "${REPO_LOCAL_PATH}/.git"
+
+        local local_branch=$(git -C "${REPO_LOCAL_PATH}" rev-parse --abbrev-ref HEAD 2> /dev/null)
+        local_branch=${local_branch:-${REPO_PUBLIC_BRANCH}}
+
+        msg "Setup Core3 source code from ${REPO_LOCAL_PATH} (branch ${local_branch})..."
+        mkdir -vp ${HOME_DIR}/workspace
+        cd ${HOME_DIR}/workspace
+        git clone --progress --origin local "${REPO_LOCAL_PATH}" Core3 || error "Failed to clone ${REPO_LOCAL_PATH}" 13
+        cd Core3
+        git checkout "${local_branch}" || error "Failed to checkout ${local_branch}" 14
+
+        if [ -n "${REPO_PUBLIC_URL}" ]; then
+            git remote add origin ${REPO_PUBLIC_URL}/Core3.git
+            git fetch --no-tags origin || warning "Failed to fetch origin"
+        fi
+    elif [ -n "${REPO_PUBLIC_URL}" ]; then
+        msg "Setup Core3 source code.."
+        mkdir -vp ${HOME_DIR}/workspace
+        cd ${HOME_DIR}/workspace
+        git clone --progress ${REPO_PUBLIC_URL}/Core3.git
+        cd Core3
+        git checkout ${REPO_PUBLIC_BRANCH}
+    else
         return
     fi
 
-    msg "Setup Core3 source code.."
-    mkdir -vp ${HOME_DIR}/workspace
-    cd ${HOME_DIR}/workspace
-    git clone --progress ${REPO_PUBLIC_URL}/Core3.git
-    cd Core3
     echo 'MMOCoreORB/bin/scripts/managers/resource_manager_spawns.lua' >> .git/info/exclude
     git update-index --assume-unchanged MMOCoreORB/bin/scripts/managers/resource_manager_spawns.lua
-    git checkout ${REPO_PUBLIC_BRANCH}
+
+    # engine3 is a submodule fetched from its own upstream; a host checkout with an
+    # uninitialized submodule carries no objects for it, so always init from the network.
+    msg "Initializing submodules..."
+    git submodule update --init --recursive || error "Failed to init submodules" 15
 }
 
 core3_mysql_fix_dbname() {

@@ -44,6 +44,7 @@ RUN set -xe; \
         cppcheck \
         curl \
         db5.3-util \
+        default-jre-headless \
         dnsutils \
         doxygen \
         figlet \
@@ -137,6 +138,13 @@ ENV PATH=${HOME_DIR}/bin:/usr/local/bin:${PATH}
 EXPOSE ${STATUSPORT}/tcp ${LOGINPORT}/udp ${PINGPORT}/udp ${ZONESERVERPORT}/udp
 
 COPY files /
+
+# A Windows host checkout may have CRLF line endings (core.autocrlf=true), which
+# makes every shipped script unrunnable ("bad interpreter"). Strip CR after COPY
+# so the image builds identically from a Windows or a Linux checkout.
+RUN set -xe; \
+    find /run.sh /firstboot -type f -exec sh -c 'for f; do tr -d "\015" < "$f" > "$f.nocr" && mv "$f.nocr" "$f"; done' _ {} +; \
+    chmod -v 0755 /run.sh /firstboot/home-files/bin/*;
 
 VOLUME ${HOME_DIR}
 

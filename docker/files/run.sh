@@ -50,6 +50,19 @@ core3_boot() {
 
 core3_boot
 
+core3_start_services() {
+    # firstboot starts mariadb itself, but on every later container start nothing
+    # does, and ~/bin/run needs a live database. Start it here so the shell always
+    # comes up with a usable server.
+    if ! pgrep -x mariadbd > /dev/null && ! pgrep -x mysqld > /dev/null; then
+        msg "Starting mariadb..."
+        chown -R mysql:mysql /var/lib/mysql/. || true
+        /etc/init.d/mariadb start || warning "mariadb failed to start"
+    fi
+}
+
+core3_start_services
+
 msg "Starting interactive shell..."
 
 set -x

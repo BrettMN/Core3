@@ -1,0 +1,29 @@
+#!/bin/bash -e
+# Pull the latest commits from the host checkout bind-mounted at ${REPO_LOCAL_PATH}
+# (git remote "local") into this container's build tree, then refresh submodules.
+source ~/.env
+
+cd ~/workspace/Core3
+
+if ! git remote | grep -qx local; then
+    echo "No 'local' remote: this container was created from the public repo, not a host checkout."
+    exit 1
+fi
+
+# The bind mount is owned by a host uid, which git rejects as "dubious ownership".
+# Re-assert it per run so this works even in a container whose /etc/gitconfig
+# predates the fix.
+SRC=$(git remote get-url local)
+
+for dir in "${SRC}" "${SRC}/.git"; do
+    if ! git config --global --get-all safe.directory 2> /dev/null | grep -qxF "${dir}"; then
+        git config --global --add safe.directory "${dir}"
+    fi
+done
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+set -x
+git fetch --no-tags local
+git merge --ff-only "local/${BRANCH}"
+git submodule update --init --recursive
