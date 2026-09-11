@@ -1,5 +1,5 @@
 /*
- 				Copyright <SWGEmu>
+				Copyright <SWGEmu>
 		See file COPYING for copying conditions. */
 
 #include "ResourceSpawner.h"
@@ -19,9 +19,7 @@
 #include "server/zone/objects/player/sessions/survey/SurveySession.h"
 #include "server/zone/managers/stringid/StringIdManager.h"
 
-ResourceSpawner::ResourceSpawner(ManagedReference<ZoneServer*> serv,
-		ZoneProcessServer* impl) {
-
+ResourceSpawner::ResourceSpawner(ManagedReference<ZoneServer*> serv, ZoneProcessServer* impl) {
 	server = serv;
 	processor = impl;
 	databaseManager = ObjectDatabaseManager::instance();
@@ -38,7 +36,7 @@ ResourceSpawner::ResourceSpawner(ManagedReference<ZoneServer*> serv,
 
 	nameManager = processor->getNameManager();
 	objectManager = server->getObjectManager();
-	samplingMultiplier = 1; //should be 1 for normal use
+	samplingMultiplier = 1; // should be 1 for normal use
 
 	minimumPool = new MinimumPool(this);
 	fixedPool = new FixedPool(this);
@@ -61,28 +59,23 @@ ResourceSpawner::~ResourceSpawner() {
 }
 
 void ResourceSpawner::init() {
-
 	resourceTree = new ResourceTree(this);
 	resourceMap = new ResourceMap();
 }
 
-void ResourceSpawner::initializeMinimumPool(LuaObject includes,
-		const String& excludes) {
+void ResourceSpawner::initializeMinimumPool(LuaObject includes, const String& excludes) {
 	minimumPool->initialize(includes, excludes);
 }
 
-void ResourceSpawner::initializeFixedPool(LuaObject includes,
-		const String& excludes) {
+void ResourceSpawner::initializeFixedPool(LuaObject includes, const String& excludes) {
 	fixedPool->initialize(includes, excludes);
 }
 
-void ResourceSpawner::initializeRandomPool(LuaObject includes,
-		const String& excludes, const int size) {
+void ResourceSpawner::initializeRandomPool(LuaObject includes, const String& excludes, const int size) {
 	randomPool->initialize(includes, excludes, size);
 }
 
-void ResourceSpawner::initializeNativePool(const String& includes,
-		const String& excludes) {
+void ResourceSpawner::initializeNativePool(const String& includes, const String& excludes) {
 	nativePool->initialize(includes, excludes);
 }
 
@@ -100,9 +93,7 @@ void ResourceSpawner::addJtlResource(const String& resourceName) {
 	jtlResources.add(resourceName);
 }
 
-void ResourceSpawner::setSpawningParameters(bool loadFromScript, const int dur, const int throt,
-		const int override, const int spawnquantity) {
-
+void ResourceSpawner::setSpawningParameters(bool loadFromScript, const int dur, const int throt, const int override, const int spawnquantity) {
 	scriptLoading = loadFromScript;
 	shiftDuration = dur;
 	lowerGateOverride = override;
@@ -127,10 +118,7 @@ void ResourceSpawner::start() {
 }
 
 void ResourceSpawner::loadResourceSpawns() {
-
-	ObjectDatabase* resourceDatabase =
-			ObjectDatabaseManager::instance()->loadObjectDatabase("resourcespawns",
-					true);
+	ObjectDatabase* resourceDatabase = ObjectDatabaseManager::instance()->loadObjectDatabase("resourcespawns", true);
 
 	ObjectDatabaseManager::instance()->commitLocalTransaction();
 	ObjectDatabaseIterator iterator(resourceDatabase, true);
@@ -138,9 +126,8 @@ void ResourceSpawner::loadResourceSpawns() {
 	uint64 objectID = 0;
 
 	while (iterator.getNextKey(objectID)) {
-
 		Reference<ResourceSpawn*> resourceSpawn = Core::getObjectBroker()->lookUp(objectID).castTo<ResourceSpawn*>();
-		//ObjectDatabaseManager::instance()->commitLocalTransaction();
+		// ObjectDatabaseManager::instance()->commitLocalTransaction();
 
 		if (resourceSpawn == nullptr) {
 			error("Trying to load object as ResourceSpawn that is not a resource spawn");
@@ -165,8 +152,7 @@ void ResourceSpawner::loadResourceSpawns() {
 
 					Locker locker(resourceSpawn);
 
-					resourceSpawn->createSpawnMaps(resourceEntry->isJTL(), minPool - spawnMapSize,
-							resourceEntry->getMaxpool() - spawnMapSize, resourceEntry->getZoneRestriction(), activeZones);
+					resourceSpawn->createSpawnMaps(resourceEntry->isJTL(), minPool - spawnMapSize, resourceEntry->getMaxpool() - spawnMapSize, resourceEntry->getZoneRestriction(), activeZones);
 				}
 			}
 		}
@@ -182,39 +168,34 @@ void ResourceSpawner::loadResourceSpawns() {
 			Locker locker(resourceSpawn);
 
 			switch (resourceSpawn->getSpawnPool()) {
-			case ResourcePool::MINIMUMPOOL:
-				minimumPool->addResource(resourceSpawn, resourceSpawn->getPoolSlot());
-				break;
-			case ResourcePool::RANDOMPOOL:
-				randomPool->addResource(resourceSpawn, resourceSpawn->getPoolSlot());
-				break;
-			case ResourcePool::FIXEDPOOL:
-				fixedPool->addResource(resourceSpawn, resourceSpawn->getPoolSlot());
-				break;
-			case ResourcePool::NATIVEPOOL:
-				nativePool->addResource(resourceSpawn, resourceSpawn->getPoolSlot());
-				break;
-			case ResourcePool::MANUALPOOL:
-				manualPool->addResource(resourceSpawn, resourceSpawn->getPoolSlot());
-				break;
+				case ResourcePool::MINIMUMPOOL:
+					minimumPool->addResource(resourceSpawn, resourceSpawn->getPoolSlot());
+					break;
+				case ResourcePool::RANDOMPOOL:
+					randomPool->addResource(resourceSpawn, resourceSpawn->getPoolSlot());
+					break;
+				case ResourcePool::FIXEDPOOL:
+					fixedPool->addResource(resourceSpawn, resourceSpawn->getPoolSlot());
+					break;
+				case ResourcePool::NATIVEPOOL:
+					nativePool->addResource(resourceSpawn, resourceSpawn->getPoolSlot());
+					break;
+				case ResourcePool::MANUALPOOL:
+					manualPool->addResource(resourceSpawn, resourceSpawn->getPoolSlot());
+					break;
 			}
 		}
 	}
 
-	if(resourceMap->size() == 0 && scriptLoading) {
-
+	if (resourceMap->size() == 0 && scriptLoading) {
 		spawnScriptResources();
-
 	}
 
-	String built = "Resource Map Built with " + String::valueOf(
-			resourceMap->size()) + " resources";
+	String built = "Resource Map Built with " + String::valueOf(resourceMap->size()) + " resources";
 	info(built, true);
-
 }
 
 void ResourceSpawner::spawnScriptResources() {
-
 	Lua* lua = new Lua();
 	lua->init();
 
@@ -231,14 +212,12 @@ void ResourceSpawner::spawnScriptResources() {
 		return;
 	}
 
-	for(int i = 1; i <= luaObject.getTableSize(); ++i) {
-
+	for (int i = 1; i <= luaObject.getTableSize(); ++i) {
 		LuaObject resource = luaObject.getObjectAt(i);
-		if(!resource.isValidTable())
+		if (!resource.isValidTable())
 			continue;
 
-		Reference<ResourceSpawn*> newSpawn = dynamic_cast<ResourceSpawn*>
-			(objectManager->createObject(0xb2825c5a, 1, "resourcespawns"));
+		Reference<ResourceSpawn*> newSpawn = dynamic_cast<ResourceSpawn*>(objectManager->createObject(0xb2825c5a, 1, "resourcespawns"));
 
 		if (newSpawn == nullptr) {
 			error("createResourceSpawn is trying to create a resourcespawn with the wrong type");
@@ -293,24 +272,21 @@ void ResourceSpawner::spawnScriptResources() {
 }
 
 bool ResourceSpawner::writeAllSpawnsToScript() {
-
-	if(!scriptLoading)
+	if (!scriptLoading)
 		return false;
 
 	try {
-
 		File* file = new File("scripts/managers/resource_manager_spawns.lua");
-		//if(!file->exists()) {
+		// if(!file->exists()) {
 		//	delete file;
 		//	return;
-		//}
+		// }
 
 		FileWriter* writer = new FileWriter(file);
 
 		writer->writeLine("resources = {");
 
-		for(int i = 0; i < resourceMap->size(); ++i) {
-
+		for (int i = 0; i < resourceMap->size(); ++i) {
 			ManagedReference<ResourceSpawn*> spawn = resourceMap->get(i);
 
 			writer->writeLine("	{");
@@ -319,9 +295,9 @@ bool ResourceSpawner::writeAllSpawnsToScript() {
 			writer->writeLine("		type = \"" + spawn->getType() + "\",");
 
 			writer->writeLine("		classes = {");
-			for(int i = 0; i < 8; ++i) {
+			for (int i = 0; i < 8; ++i) {
 				String spawnClass = spawn->getClass(i);
-				if(spawnClass != "") {
+				if (spawnClass != "") {
 					String spawnClass2 = spawn->getStfClass(i);
 					writer->writeLine("			{\"" + spawnClass + "\", \"" + spawnClass2 + "\"},");
 				}
@@ -329,10 +305,10 @@ bool ResourceSpawner::writeAllSpawnsToScript() {
 			writer->writeLine("		},");
 
 			writer->writeLine("		attributes = {");
-			for(int i = 0; i < 12; ++i) {
+			for (int i = 0; i < 12; ++i) {
 				String attribute = "";
 				int value = spawn->getAttributeAndValue(attribute, i);
-				if(attribute != "") {
+				if (attribute != "") {
 					writer->writeLine("			{\"" + attribute + "\", " + String::valueOf(value) + "},");
 				}
 			}
@@ -374,7 +350,7 @@ void ResourceSpawner::shiftResources() {
 }
 
 ResourceSpawn* ResourceSpawner::createRecycledResourceSpawn(const ResourceTreeEntry* entry) const {
-	ResourceSpawn* newSpawn = dynamic_cast<ResourceSpawn*> (objectManager->createObject(0xb2825c5a, 1, "resourcespawns"));
+	ResourceSpawn* newSpawn = dynamic_cast<ResourceSpawn*>(objectManager->createObject(0xb2825c5a, 1, "resourcespawns"));
 
 	if (newSpawn == nullptr) {
 		error("createResourceSpawn is trying to create a resourcespawn with the wrong type");
@@ -389,7 +365,6 @@ ResourceSpawn* ResourceSpawner::createRecycledResourceSpawn(const ResourceTreeEn
 	for (int i = 0; i < entry->getClassCount(); ++i) {
 		String resClass = entry->getClass(i);
 		newSpawn->addClass(resClass);
-
 	}
 
 	for (int i = 0; i < entry->getStfClassCount(); ++i) {
@@ -429,7 +404,7 @@ ResourceSpawn* ResourceSpawner::manualCreateResourceSpawn(CreatureObject* player
 	VectorMap<String, int> attributes;
 
 	try {
-		while(tokenizer.hasMoreTokens()) {
+		while (tokenizer.hasMoreTokens()) {
 			String token;
 			tokenizer.getStringToken(token);
 
@@ -476,14 +451,11 @@ ResourceSpawn* ResourceSpawner::manualCreateResourceSpawn(CreatureObject* player
 	return resourceSpawn;
 }
 
-ResourceSpawn* ResourceSpawner::createResourceSpawn(const String& type,
-		const Vector<String>& excludes, const String& zonerestriction) {
-
-	if(type.isEmpty())
+ResourceSpawn* ResourceSpawner::createResourceSpawn(const String& type, const Vector<String>& excludes, const String& zonerestriction) {
+	if (type.isEmpty())
 		return nullptr;
 
-	auto resourceEntry = resourceTree->getEntry(type, excludes,
-			zonerestriction);
+	auto resourceEntry = resourceTree->getEntry(type, excludes, zonerestriction);
 
 	if (resourceEntry == nullptr) {
 		info("Resource type not found: " + type);
@@ -492,9 +464,7 @@ ResourceSpawn* ResourceSpawner::createResourceSpawn(const String& type,
 
 	String name = makeResourceName(resourceEntry->getRandomNameClass());
 
-	ResourceSpawn* newSpawn =
-			dynamic_cast<ResourceSpawn*> (objectManager->createObject(
-					0xb2825c5a, 1, "resourcespawns"));
+	ResourceSpawn* newSpawn = dynamic_cast<ResourceSpawn*>(objectManager->createObject(0xb2825c5a, 1, "resourcespawns"));
 
 	if (newSpawn == nullptr) {
 		error("createResourceSpawn is trying to create a resourcespawn with the wrong type");
@@ -511,7 +481,6 @@ ResourceSpawn* ResourceSpawner::createResourceSpawn(const String& type,
 	for (int i = 0; i < resourceEntry->getClassCount(); ++i) {
 		String resClass = resourceEntry->getClass(i);
 		newSpawn->addClass(resClass);
-
 	}
 
 	for (int i = 0; i < resourceEntry->getStfClassCount(); ++i) {
@@ -521,8 +490,7 @@ ResourceSpawn* ResourceSpawner::createResourceSpawn(const String& type,
 
 	for (int i = 0; i < resourceEntry->getAttributeCount(); ++i) {
 		auto attrib = resourceEntry->getAttribute(i);
-		int randomValue = randomizeValue(attrib->getMinimum(),
-				attrib->getMaximum());
+		int randomValue = randomizeValue(attrib->getMinimum(), attrib->getMaximum());
 		String attribName = attrib->getName();
 		int index = attrib->getIndex();
 		newSpawn->addAttribute(attribName, randomValue);
@@ -540,31 +508,25 @@ ResourceSpawn* ResourceSpawner::createResourceSpawn(const String& type,
 	Vector<String> activeZones;
 	activeResourceZones.clone(activeZones);
 
-	newSpawn->createSpawnMaps(resourceEntry->isJTL(),
-			resourceEntry->getMinpool(), resourceEntry->getMaxpool(),
-			resourceEntry->getZoneRestriction(), activeZones);
+	newSpawn->createSpawnMaps(resourceEntry->isJTL(), resourceEntry->getMinpool(), resourceEntry->getMaxpool(), resourceEntry->getZoneRestriction(), activeZones);
 
 	if (newSpawn->isType("energy") || newSpawn->isType("radioactive"))
 		newSpawn->setIsEnergy(true);
 
 	resourceMap->add(name, newSpawn);
 
-	//resourceEntry->toString();
-	//newSpawn->print();
+	// resourceEntry->toString();
+	// newSpawn->print();
 	return newSpawn;
 }
 
-ResourceSpawn* ResourceSpawner::createResourceSpawn(const String& type,
-		const String& zonerestriction) {
+ResourceSpawn* ResourceSpawner::createResourceSpawn(const String& type, const String& zonerestriction) {
 	Vector<String> excludes;
 
 	return createResourceSpawn(type, excludes, zonerestriction);
 }
 
-ResourceSpawn* ResourceSpawner::createResourceSpawn(
-		const Vector<String>& includes, const Vector<String>& excludes,
-		const String& zonerestriction) {
-
+ResourceSpawn* ResourceSpawner::createResourceSpawn(const Vector<String>& includes, const Vector<String>& excludes, const String& zonerestriction) {
 	String type = includes.get(System::random(includes.size() - 1));
 
 	return createResourceSpawn(type, excludes, zonerestriction);
@@ -573,7 +535,7 @@ ResourceSpawn* ResourceSpawner::createResourceSpawn(
 void ResourceSpawner::despawn(ResourceSpawn* spawn) {
 	Locker locker(spawn);
 
-	for(int i = 0; i < spawn->getSpawnMapSize(); ++i) {
+	for (int i = 0; i < spawn->getSpawnMapSize(); ++i) {
 		String zone = spawn->getSpawnMapZone(i);
 		resourceMap->remove(spawn, zone);
 	}
@@ -598,27 +560,29 @@ int ResourceSpawner::randomizeValue(int min, int max) {
 	if (min == 0 && max == 0)
 		return 0;
 
-	if (min > lowerGateOverride)
-		min = lowerGateOverride;
+	return max;
 
-	int randomStat = System::random(max - min) + min;
+	// if (min > lowerGateOverride)
+	// 	min = lowerGateOverride;
 
-	if (spawnThrottling < 90) {
-		int breakpoint = ((spawnThrottling * (max - min)) / 100) + min;
-		bool aboveBreakpoint = System::random(9) == 7;
+	// int randomStat = System::random(max - min) + min;
 
-		if ((aboveBreakpoint && randomStat < breakpoint) || (!aboveBreakpoint && randomStat > breakpoint)) {
-			if (aboveBreakpoint) {
-				while (randomStat < breakpoint)
-					randomStat = System::random(max - min) + min;
-			} else {
-				while (randomStat > breakpoint)
-					randomStat = System::random(max - min) + min;
-			}
-		}
-	}
+	// if (spawnThrottling < 90) {
+	// 	int breakpoint = ((spawnThrottling * (max - min)) / 100) + min;
+	// 	bool aboveBreakpoint = System::random(9) == 7;
 
-	return randomStat;
+	// 	if ((aboveBreakpoint && randomStat < breakpoint) || (!aboveBreakpoint && randomStat > breakpoint)) {
+	// 		if (aboveBreakpoint) {
+	// 			while (randomStat < breakpoint)
+	// 				randomStat = System::random(max - min) + min;
+	// 		} else {
+	// 			while (randomStat > breakpoint)
+	// 				randomStat = System::random(max - min) + min;
+	// 		}
+	// 	}
+	// }
+
+	// return randomStat;
 }
 
 long ResourceSpawner::getRandomExpirationTime(const ResourceTreeEntry* resourceEntry) {
@@ -633,9 +597,7 @@ long ResourceSpawner::getRandomExpirationTime(const ResourceTreeEntry* resourceE
 }
 
 long ResourceSpawner::getRandomUnixTimestamp(int min, int max) const {
-	return time(0) + (System::random((max * shiftDuration) - (min
-			* shiftDuration)) + min * shiftDuration);
-
+	return time(0) + (System::random((max * shiftDuration) - (min * shiftDuration)) + min * shiftDuration);
 }
 
 const Vector<String>& ResourceSpawner::getActiveResourceZones() const {
@@ -666,77 +628,77 @@ ResourceSpawn* ResourceSpawner::getRecycledVersion(const ResourceSpawn* resource
 	const ResourceTreeEntry* recycledEntry = nullptr;
 	ManagedReference<ResourceSpawn*> recycledVersion = nullptr;
 
-	switch(recycleType) {
-	case RecycleTool::NOTYPE:
-		return nullptr;
-		break;
-	case RecycleTool::CHEMICALS:
-		recycledEntry = resourceTree->getEntry("chemical_compound");
-		break;
-	case RecycleTool::WATER:
-		recycledEntry = resourceTree->getEntry("water_solution");
-		break;
-	case RecycleTool::RADIOACTIVE:
-		recycledEntry = resourceTree->getEntry("combined_radioactive_isotpopes");
-		break;
-	case RecycleTool::SOLIDFUEL:
-		recycledEntry = resourceTree->getEntry("degraded_fuel_petrochem_solid");
-		break;
-	case RecycleTool::HIDE:
-		recycledEntry = resourceTree->getEntry("synthesized_hides");
-		break;
-	case RecycleTool::MEAT:
-		recycledEntry = resourceTree->getEntry("processed_meat");
-		break;
-	case RecycleTool::BONE:
-		recycledEntry = resourceTree->getEntry("ground_bones");
-		break;
-	case RecycleTool::HORN:
-		recycledEntry = resourceTree->getEntry("bone_horn_ground");
-		break;
-	case RecycleTool::SEAFOOD:
-		recycledEntry = resourceTree->getEntry("processed_seafood");
-		break;
-	case RecycleTool::MILK:
-		recycledEntry = resourceTree->getEntry("milk_homogenized");
-		break;
-	case RecycleTool::CEREAL:
-		recycledEntry = resourceTree->getEntry("processed_cereal");
-		break;
-	case RecycleTool::FRUIT:
-		recycledEntry = resourceTree->getEntry("mixed_fruits");
-		break;
-	case RecycleTool::VEGETABLE:
-		recycledEntry = resourceTree->getEntry("mixed_vegetables");
-		break;
-	case RecycleTool::WOOD:
-		recycledEntry = resourceTree->getEntry("processed_wood");
-		break;
-	case RecycleTool::FERROUS:
-		if (resource->isUnknownType())
-			recycledEntry = resourceTree->getEntry("smelted_metal_ferrous_unknown");
-		else if (resource->isType("iron"))
-			recycledEntry = resourceTree->getEntry("iron_smelted");
-		else if (resource->isType("steel"))
-			recycledEntry = resourceTree->getEntry("steel_smelted");
-		break;
-	case RecycleTool::NONFERROUS:
-		if (resource->isUnknownType())
-			recycledEntry = resourceTree->getEntry("smelted_metal_nonferrous_unknown");
-		else if (resource->isType("aluminum"))
-			recycledEntry = resourceTree->getEntry("aluminum_smelted");
-		else if (resource->isType("copper"))
-			recycledEntry = resourceTree->getEntry("copper_smelted");
-		break;
-	case RecycleTool::IGNEOUS:
-		recycledEntry = resourceTree->getEntry("ore_extrusive_low_grade");
-		break;
-	case RecycleTool::SEDIMENTARY:
-		recycledEntry = resourceTree->getEntry("ore_carbonate_low_grade");
-		break;
-	case RecycleTool::GEMSTONE:
-		recycledEntry = resourceTree->getEntry("gemstone_mixed_low_quality");
-		break;
+	switch (recycleType) {
+		case RecycleTool::NOTYPE:
+			return nullptr;
+			break;
+		case RecycleTool::CHEMICALS:
+			recycledEntry = resourceTree->getEntry("chemical_compound");
+			break;
+		case RecycleTool::WATER:
+			recycledEntry = resourceTree->getEntry("water_solution");
+			break;
+		case RecycleTool::RADIOACTIVE:
+			recycledEntry = resourceTree->getEntry("combined_radioactive_isotpopes");
+			break;
+		case RecycleTool::SOLIDFUEL:
+			recycledEntry = resourceTree->getEntry("degraded_fuel_petrochem_solid");
+			break;
+		case RecycleTool::HIDE:
+			recycledEntry = resourceTree->getEntry("synthesized_hides");
+			break;
+		case RecycleTool::MEAT:
+			recycledEntry = resourceTree->getEntry("processed_meat");
+			break;
+		case RecycleTool::BONE:
+			recycledEntry = resourceTree->getEntry("ground_bones");
+			break;
+		case RecycleTool::HORN:
+			recycledEntry = resourceTree->getEntry("bone_horn_ground");
+			break;
+		case RecycleTool::SEAFOOD:
+			recycledEntry = resourceTree->getEntry("processed_seafood");
+			break;
+		case RecycleTool::MILK:
+			recycledEntry = resourceTree->getEntry("milk_homogenized");
+			break;
+		case RecycleTool::CEREAL:
+			recycledEntry = resourceTree->getEntry("processed_cereal");
+			break;
+		case RecycleTool::FRUIT:
+			recycledEntry = resourceTree->getEntry("mixed_fruits");
+			break;
+		case RecycleTool::VEGETABLE:
+			recycledEntry = resourceTree->getEntry("mixed_vegetables");
+			break;
+		case RecycleTool::WOOD:
+			recycledEntry = resourceTree->getEntry("processed_wood");
+			break;
+		case RecycleTool::FERROUS:
+			if (resource->isUnknownType())
+				recycledEntry = resourceTree->getEntry("smelted_metal_ferrous_unknown");
+			else if (resource->isType("iron"))
+				recycledEntry = resourceTree->getEntry("iron_smelted");
+			else if (resource->isType("steel"))
+				recycledEntry = resourceTree->getEntry("steel_smelted");
+			break;
+		case RecycleTool::NONFERROUS:
+			if (resource->isUnknownType())
+				recycledEntry = resourceTree->getEntry("smelted_metal_nonferrous_unknown");
+			else if (resource->isType("aluminum"))
+				recycledEntry = resourceTree->getEntry("aluminum_smelted");
+			else if (resource->isType("copper"))
+				recycledEntry = resourceTree->getEntry("copper_smelted");
+			break;
+		case RecycleTool::IGNEOUS:
+			recycledEntry = resourceTree->getEntry("ore_extrusive_low_grade");
+			break;
+		case RecycleTool::SEDIMENTARY:
+			recycledEntry = resourceTree->getEntry("ore_carbonate_low_grade");
+			break;
+		case RecycleTool::GEMSTONE:
+			recycledEntry = resourceTree->getEntry("gemstone_mixed_low_quality");
+			break;
 	}
 
 	if (recycledEntry == nullptr)
@@ -756,9 +718,7 @@ int ResourceSpawner::sendResourceRecycleType(const ResourceSpawn* resource) cons
 	return entry->getRecycleToolType();
 }
 
-void ResourceSpawner::sendResourceListForSurvey(CreatureObject* player,
-		const int toolType, const String& surveyType) const {
-
+void ResourceSpawner::sendResourceListForSurvey(CreatureObject* player, const int toolType, const String& surveyType) const {
 	Zone* zone = player->getZone();
 
 	if (zone == nullptr)
@@ -771,7 +731,7 @@ void ResourceSpawner::sendResourceListForSurvey(CreatureObject* player,
 	}
 
 	ResourceListForSurveyMessage* message = new ResourceListForSurveyMessage();
-	VectorMap<uint64, ManagedReference<ResourceSpawn*> > matchingResources;
+	VectorMap<uint64, ManagedReference<ResourceSpawn*>> matchingResources;
 	matchingResources.setAllowDuplicateInsertPlan();
 
 	for (int i = 0; i < zoneMap->size(); ++i) {
@@ -796,20 +756,19 @@ void ResourceSpawner::sendResourceListForSurvey(CreatureObject* player,
 }
 
 void ResourceSpawner::sendSurvey(CreatureObject* player, const String& resname) const {
-
 	/*if (player->getHAM(CreatureAttribute::MIND) < 100) {
 		player->setPosture(CreaturePosture::UPRIGHT, true);
 		player->sendSystemMessage("@error_message:survey_mind"); //You are exhausted. You nee to clear your head before you can survey again.
 		return;
 	}*/
 
-	//Adjust cost based upon player's focus
-	int mindCost = 100 - (int)(player->getHAM(CreatureAttribute::FOCUS)/15.f);
+	// Adjust cost based upon player's focus
+	int mindCost = 100 - (int)(player->getHAM(CreatureAttribute::FOCUS) / 15.f);
 
 	player->inflictDamage(player, CreatureAttribute::MIND, mindCost, false, true);
 
 	ManagedReference<SurveySession*> session = player->getActiveSession(SessionFacadeType::SURVEY).castTo<SurveySession*>();
-	if(session == nullptr) {
+	if (session == nullptr) {
 		return;
 	}
 
@@ -830,7 +789,7 @@ void ResourceSpawner::sendSurvey(CreatureObject* player, const String& resname) 
 		toolRange = 320;
 
 	if (points <= 0 || points > 6)
-		points =  3;
+		points = 3;
 
 	float spacer = float(toolRange) / float(points - 1);
 
@@ -842,7 +801,6 @@ void ResourceSpawner::sendSurvey(CreatureObject* player, const String& resname) 
 
 	for (int i = 0; i < points; i++) {
 		for (int j = 0; j < points; j++) {
-
 			float density = resourceMap->getDensityAt(resname, zoneName, posX, posY);
 
 			if (density > maxDensity) {
@@ -863,13 +821,12 @@ void ResourceSpawner::sendSurvey(CreatureObject* player, const String& resname) 
 	ManagedReference<WaypointObject*> waypoint = nullptr;
 
 	if (maxDensity >= 0.1f) {
-
 		// Get previous survey waypoint
 		waypoint = ghost->getSurveyWaypoint();
 
 		// Create new waypoint
 		if (waypoint == nullptr)
-			waypoint = ( server->createObject(0xc456e788, 1)).castTo<WaypointObject*>();
+			waypoint = (server->createObject(0xc456e788, 1)).castTo<WaypointObject*>();
 
 		Locker locker(waypoint);
 
@@ -892,12 +849,10 @@ void ResourceSpawner::sendSurvey(CreatureObject* player, const String& resname) 
 	session->rescheduleSurvey(surveyMessage, waypoint, maxDensity, resourceSpawn);
 }
 
-void ResourceSpawner::sendSample(CreatureObject* player, const String& resname,
-		const String& sampleAnimation) const {
-
+void ResourceSpawner::sendSample(CreatureObject* player, const String& resname, const String& sampleAnimation) const {
 	// Determine if survey tool is valid, and that resource actually exists
 	ManagedReference<SurveySession*> session = player->getActiveSession(SessionFacadeType::SURVEY).castTo<SurveySession*>();
-	if(session == nullptr) {
+	if (session == nullptr) {
 		return;
 	}
 
@@ -908,14 +863,12 @@ void ResourceSpawner::sendSample(CreatureObject* player, const String& resname,
 
 	ManagedReference<PlayerObject*> ghost = player->getPlayerObject();
 
-	//Adjust cost based upon player's quickness
-	int actionCost = 124 - (int)(player->getHAM(CreatureAttribute::QUICKNESS)/12.5f);
+	// Adjust cost based upon player's quickness
+	int actionCost = 124 - (int)(player->getHAM(CreatureAttribute::QUICKNESS) / 12.5f);
 
 	player->inflictDamage(player, CreatureAttribute::ACTION, actionCost, false, true);
 
-	PlayClientEffectLoc* effect = new PlayClientEffectLoc(sampleAnimation,
-			player->getZone()->getZoneName(), player->getPositionX(),
-			player->getPositionZ(), player->getPositionY());
+	PlayClientEffectLoc* effect = new PlayClientEffectLoc(sampleAnimation, player->getZone()->getZoneName(), player->getPositionX(), player->getPositionZ(), player->getPositionY());
 
 	player->broadcastMessage(effect, true);
 
@@ -932,10 +885,9 @@ void ResourceSpawner::sendSample(CreatureObject* player, const String& resname,
 }
 
 void ResourceSpawner::sendSampleResults(TransactionLog& trx, CreatureObject* player, const float density, const String& resname) const {
-
 	ManagedReference<SurveySession*> session = player->getActiveSession(SessionFacadeType::SURVEY).castTo<SurveySession*>();
 
-	if(session == nullptr) {
+	if (session == nullptr) {
 		trx.abort() << "Missing active survey session";
 		return;
 	}
@@ -992,7 +944,7 @@ void ResourceSpawner::sendSampleResults(TransactionLog& trx, CreatureObject* pla
 		return;
 	}
 
-	int maxUnitsExtracted = (int) (density * (25 + System::random(3)));
+	int maxUnitsExtracted = (int)(density * (25 + System::random(3)));
 
 	float cityMultiplier = 1.f + player->getSkillMod("private_spec_samplesize") / 100.f;
 
@@ -1046,8 +998,7 @@ void ResourceSpawner::sendSampleResults(TransactionLog& trx, CreatureObject* pla
 
 	resourceSpawn->extractResource(zoneName, unitsExtracted);
 
-	int xp = (int) (((float) unitsExtracted / (float) maxUnitsExtracted)
-			* xpcap);
+	int xp = (int)(((float)unitsExtracted / (float)maxUnitsExtracted) * xpcap);
 	ManagedReference<PlayerManager*> playerManager = server->getPlayerManager();
 
 	if (playerManager != nullptr)
@@ -1075,16 +1026,13 @@ bool ResourceSpawner::addResourceToPlayerInventory(TransactionLog& trx, Creature
 	Locker locker(inventory);
 	// Check inventory for resource and add if existing
 	for (int i = 0; i < inventory->getContainerObjectsSize(); ++i) {
-		ManagedReference<SceneObject*> object =
-				inventory->getContainerObject(i);
+		ManagedReference<SceneObject*> object = inventory->getContainerObject(i);
 
 		if (object->isResourceContainer()) {
-			ManagedReference<ResourceContainer*> resource =
-					cast<ResourceContainer*>( object.get());
+			ManagedReference<ResourceContainer*> resource = cast<ResourceContainer*>(object.get());
 
-			if (resource->getSpawnName() == resourceSpawn->getName() &&
-					resource->getQuantity() < ResourceContainer::MAXSIZE) {
-				if  ((resource->getQuantity() + unitsExtracted) <= ResourceContainer::MAXSIZE ){
+			if (resource->getSpawnName() == resourceSpawn->getName() && resource->getQuantity() < ResourceContainer::MAXSIZE) {
+				if ((resource->getQuantity() + unitsExtracted) <= ResourceContainer::MAXSIZE) {
 					trx.addRelatedObject(resource);
 					trx.addState("resourceType", resourceSpawn->getType());
 					trx.addState("resourceID", resourceSpawn->getObjectID());
@@ -1094,7 +1042,7 @@ bool ResourceSpawner::addResourceToPlayerInventory(TransactionLog& trx, Creature
 					int newStackSize = resource->getQuantity() + unitsExtracted;
 					resource->setQuantity(newStackSize);
 					return true;
-				}else{
+				} else {
 					unitsExtracted = unitsExtracted - (ResourceContainer::MAXSIZE - resource->getQuantity());
 					resource->setQuantity(ResourceContainer::MAXSIZE);
 				}
@@ -1104,7 +1052,7 @@ bool ResourceSpawner::addResourceToPlayerInventory(TransactionLog& trx, Creature
 	if (unitsExtracted > 0 && inventory->isContainerFullRecursive()) {
 		StringIdChatParameter err("survey", "no_inv_space");
 		player->sendSystemMessage(err);
-		if (!player->isIncapacitated() && !player->isDead()){
+		if (!player->isIncapacitated() && !player->isDead()) {
 			player->setPosture(CreaturePosture::UPRIGHT, true);
 		}
 		trx.abort() << "No inventory space";
@@ -1133,9 +1081,7 @@ bool ResourceSpawner::addResourceToPlayerInventory(TransactionLog& trx, Creature
 	return true;
 }
 
-Reference<ResourceContainer*> ResourceSpawner::harvestResource(CreatureObject* player,
-		const String& type, const int quantity) {
-
+Reference<ResourceContainer*> ResourceSpawner::harvestResource(CreatureObject* player, const String& type, const int quantity) {
 	String zoneName = player->getZone()->getZoneName();
 
 	ZoneResourceMap* zoneMap = resourceMap->getZoneResourceList(zoneName);
@@ -1155,7 +1101,6 @@ Reference<ResourceContainer*> ResourceSpawner::harvestResource(CreatureObject* p
 			resourceSpawn->extractResource(player->getZone()->getZoneName(), quantity);
 			return resourceSpawn->createResource(quantity);
 		}
-
 	}
 	player->sendSystemMessage("Failed to locate any suitable resources");
 	return nullptr;
@@ -1197,9 +1142,8 @@ void ResourceSpawner::addNodeToListBox(SuiListBox* sui, const String& nodeName) 
 
 	ResourceTreeNode* node = baseNode->findNode(nodeName);
 
-	//If we couldn't find a node
+	// If we couldn't find a node
 	if (node == nullptr) {
-
 		if (resourceMap->containsType(nodeName)) {
 			resourceMap->addToSuiListBox(sui, nodeName);
 			return;
@@ -1212,11 +1156,11 @@ void ResourceSpawner::addNodeToListBox(SuiListBox* sui, const String& nodeName) 
 }
 
 void ResourceSpawner::addPlanetsToListBox(SuiListBox* sui) const {
-	Reference<StringIdManager* > stringIdManager = StringIdManager::instance();
-	for(int i=0;i<activeResourceZones.size();i++) {
+	Reference<StringIdManager*> stringIdManager = StringIdManager::instance();
+	for (int i = 0; i < activeResourceZones.size(); i++) {
 		String lname = activeResourceZones.get(i);
 		String planetName = stringIdManager->getStringId(String("@planet_n:" + lname).hashCode()).toString();
-		sui->addMenuItem(planetName,i);
+		sui->addMenuItem(planetName, i);
 	}
 }
 
@@ -1225,10 +1169,10 @@ String ResourceSpawner::getPlanetByIndex(int idx) const {
 }
 
 String ResourceSpawner::addParentNodeToListBox(SuiListBox* sui, const String& currentNode) const {
-	//currentNode can be the resource name itself, the ResourceTreeEntry (finalClass), or a ResourceTreeNode...
+	// currentNode can be the resource name itself, the ResourceTreeEntry (finalClass), or a ResourceTreeNode...
 	auto baseNode = resourceTree->getBaseNode();
 
-	//If is resource name
+	// If is resource name
 	if (resourceMap->contains(currentNode.toLowerCase())) {
 		ManagedReference<ResourceSpawn*> spawn = resourceMap->get(currentNode.toLowerCase());
 		auto entry = baseNode->find(spawn->getFinalClass());
@@ -1239,7 +1183,7 @@ String ResourceSpawner::addParentNodeToListBox(SuiListBox* sui, const String& cu
 		}
 	}
 
-	//If is finalClass
+	// If is finalClass
 	auto entry = baseNode->find(currentNode);
 
 	if (entry != nullptr) {
@@ -1280,15 +1224,14 @@ void ResourceSpawner::listResourcesForPlanetOnScreen(CreatureObject* creature, c
 	for (int i = 0; i < zoneMap->size(); ++i) {
 		resourceSpawn = zoneMap->get(i);
 
-		if(resourceSpawn == nullptr)
+		if (resourceSpawn == nullptr)
 			continue;
 
 		StringBuffer info;
 		int hours = (((resourceSpawn->getDespawned() - System::getTime()) / 60) / 60);
 		int minutes = (((resourceSpawn->getDespawned() - System::getTime()) / 60) % 60);
 
-		info << resourceSpawn->getFinalClass() << "   |   " << resourceSpawn->getName()
-			 << "   |   " << "Despawns in: " << hours << " hours " << minutes << " minutes.";
+		info << resourceSpawn->getFinalClass() << "   |   " << resourceSpawn->getName() << "   |   " << "Despawns in: " << hours << " hours " << minutes << " minutes.";
 
 		creature->sendSystemMessage(info.toString());
 	}
