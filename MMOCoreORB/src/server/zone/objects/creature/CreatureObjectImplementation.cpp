@@ -187,6 +187,9 @@ void CreatureObjectImplementation::initializeMembers() {
 	setContainerDenyPermission("owner", ContainerPermissions::MOVECONTAINER);
 }
 
+// NON-STOCK: 4x vehicle speed and acceleration. Set to 1.f for stock behaviour.
+static constexpr float VEHICLE_SPEED_MULTIPLIER = 4.f;
+
 void CreatureObjectImplementation::loadTemplateData(SharedObjectTemplate* templateData) {
 	TangibleObjectImplementation::loadTemplateData(templateData);
 
@@ -247,6 +250,14 @@ void CreatureObjectImplementation::loadTemplateData(SharedObjectTemplate* templa
 	if (accel.size() > 0) {
 		runAcceleration = accel.get(0);
 		walkAcceleration = accel.get(1);
+
+		// NON-STOCK: scaled alongside the 4x vehicle speed below. Without this a
+		// vehicle still reaches 4x top speed but takes four times as long to get
+		// there, which reads as sluggish rather than fast.
+		if (isVehicleObject()) {
+			runAcceleration *= VEHICLE_SPEED_MULTIPLIER;
+			walkAcceleration *= VEHICLE_SPEED_MULTIPLIER;
+		}
 	} else {
 		runAcceleration = 0;
 		walkAcceleration = 0;
@@ -257,6 +268,19 @@ void CreatureObjectImplementation::loadTemplateData(SharedObjectTemplate* templa
 	if (speedTempl.size() > 0) {
 		runSpeed = speedTempl.get(0);
 		walkSpeed = speedTempl.get(1);
+
+		// NON-STOCK: 4x vehicle speed. Scaled here, at template load, on purpose:
+		// this runs fresh from the client template every time the object is loaded,
+		// so the value cannot compound the way setRunSpeed(getRunSpeed() * mod) in
+		// PlayerVehicleBuffImplementation::updateRiderSpeeds can. The client gets the
+		// scaled value in the vehicle's CREO baseline, and the speed hack check reads
+		// vehicle->getRunSpeed() for mounted players, so its ceiling scales too.
+		// Creature mounts are unaffected: their speed comes from PetManager's mount
+		// speed datatable, not from this template. Set to 1.f for stock behaviour.
+		if (isVehicleObject()) {
+			runSpeed *= VEHICLE_SPEED_MULTIPLIER;
+			walkSpeed *= VEHICLE_SPEED_MULTIPLIER;
+		}
 	} else {
 		runSpeed = 0;
 		walkSpeed = 0;
@@ -1794,12 +1818,28 @@ void CreatureObjectImplementation::setPosture(int newPosture, bool immediate, bo
 	updatePostures(immediate);
 }
 
+// NON-STOCK: 2x player run speed. Applied here rather than by a buff so it is
+// recomputed from scratch on every update and can never accumulate. The speed
+// hack check in PlayerManagerImplementation::checkPlayerSpeedTest derives its
+// ceiling from getSpeedMultiplierMod(), which comes from this function, so the
+// allowance scales with the multiplier instead of flagging the player.
+// Set PLAYER_RUN_SPEED_MULTIPLIER back to 1.f for stock behaviour.
+static constexpr float PLAYER_RUN_SPEED_MULTIPLIER = 2.f;
+
 float CreatureObjectImplementation::getSpeedModifier() const {
 	float modifier = 1.f;
 
 	if (posture == CreaturePosture::UPRIGHT) {
 		if (getSkillMod("private_speed_multiplier") > 0) {
 			modifier = getSkillMod("private_speed_multiplier") * 0.01f;
+		}
+
+		// Players only: mobs keep stock speed, and a mounted player's speed comes
+		// from the vehicle's own values rather than this modifier.
+		// Checked via the template rather than isPlayerCreature(), which is not
+		// const and so cannot be called from this const method.
+		if (templateObject != nullptr && templateObject->isPlayerCreatureTemplate()) {
+			modifier *= PLAYER_RUN_SPEED_MULTIPLIER;
 		}
 	} else if (posture == CreaturePosture::PRONE) {
 		if (getSkillMod("slope_move") > 50) {
