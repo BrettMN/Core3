@@ -18,6 +18,9 @@ If you have docker (i.e. Linux docker daemon, Windows/MacOS [Docker Desktop](htt
 
 ### Windows quick start (no WSL setup required)
 
+Full Windows guide, including how to push changes into a running container:
+[DOCKER-WINDOWS.md](DOCKER-WINDOWS.md).
+
 Docker Desktop's WSL2 backend runs in its own auto-managed distro, so you do not
 need to install or configure a WSL instance of your own. From PowerShell:
 
