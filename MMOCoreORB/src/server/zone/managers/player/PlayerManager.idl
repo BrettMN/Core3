@@ -101,6 +101,11 @@ class PlayerManager extends Observer implements Logger {
 
 	private int veteranRewardAdditionalMilestones;
 
+	// NON-STOCK: when non-zero, every milestone in veteranRewardMilestones is
+	// claimable regardless of account age, so players can claim more than one
+	// reward per day. Set veteranRewardsIgnoreAccountAge in player_manager.lua.
+	private int veteranRewardsIgnoreAccountAge;
+
 	@dereferenced
 	private VeteranRewardList veteranRewards;
 

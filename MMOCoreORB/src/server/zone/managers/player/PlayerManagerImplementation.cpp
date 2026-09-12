@@ -261,6 +261,9 @@ void PlayerManagerImplementation::loadLuaConfig() {
 
 	veteranRewardAdditionalMilestones = lua->getGlobalInt("veteranRewardAdditionalMilestones");
 
+	// NON-STOCK: see getEligibleMilestone.
+	veteranRewardsIgnoreAccountAge = lua->getGlobalInt("veteranRewardsIgnoreAccountAge");
+
 	LuaObject rewardMilestonesLua = lua->getGlobalObject("veteranRewardMilestones");
 	for (int i = 1; i <= rewardMilestonesLua.getTableSize(); ++i) {
 		veteranRewardMilestones.add(rewardMilestonesLua.getIntAt(i));
@@ -6157,16 +6160,25 @@ int PlayerManagerImplementation::getEligibleMilestone(PlayerObject *ghost, Accou
 	int accountAge = account->getAgeInDays();
 	int milestone = -1;
 
-	// Return -1 if account age is less than the first milestone
-	if (accountAge < veteranRewardMilestones.get(0)) {
-		return -1;
+	// NON-STOCK: veteranRewardsIgnoreAccountAge makes every milestone in the
+	// established list claimable regardless of account age, so a player can claim
+	// one reward per listed milestone in a single sitting instead of waiting a day
+	// between each. awardVeteranReward already re-enqueues claimveteranreward while
+	// this function returns >= 0, so the picks chain automatically.
+	// The additional-milestones loop below deliberately still honours account age:
+	// that loop is unbounded, and ignoring age there would never terminate.
+	if (!veteranRewardsIgnoreAccountAge) {
+		// Return -1 if account age is less than the first milestone
+		if (accountAge < veteranRewardMilestones.get(0)) {
+			return -1;
+		}
 	}
 
 	// Return the first milestone for which the player is eligible and has not already claimed
 	for (int i = 0; i < veteranRewardMilestones.size(); i++) {
 		milestone = veteranRewardMilestones.get(i);
 
-		if (accountAge >= milestone && ghost->getChosenVeteranReward(milestone).isEmpty()) {
+		if ((veteranRewardsIgnoreAccountAge || accountAge >= milestone) && ghost->getChosenVeteranReward(milestone).isEmpty()) {
 			return milestone;
 		}
 	}
@@ -6193,10 +6205,14 @@ int PlayerManagerImplementation::getFirstIneligibleMilestone(PlayerObject *playe
 	int accountAge = account->getAgeInDays();
 	int milestone = -1;
 
-	// Return the first milestone the player has not already claimed
+	// Return the first milestone the player has not already claimed.
+	// NON-STOCK: with veteranRewardsIgnoreAccountAge set, every established
+	// milestone is already claimable, so the next ineligible one is the first
+	// additional milestone. Skipping the loop keeps the time-until-next-reward
+	// message in GetVeteranRewardTimeCommand honest.
 	for (int i = 0; i < veteranRewardMilestones.size(); i++) {
 		milestone = veteranRewardMilestones.get(i);
-		if (accountAge < milestone) {
+		if (!veteranRewardsIgnoreAccountAge && accountAge < milestone) {
 			return milestone;
 		}
 	}
