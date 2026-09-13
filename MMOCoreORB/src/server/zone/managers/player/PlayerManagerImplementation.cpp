@@ -9,6 +9,12 @@
 #include <utility>
 #include <mutex>
 
+// TEMPORARY DIAGNOSTIC -- remove once the vehicle speed ceiling is fixed.
+// Prints parsedSpeed, maxSpeedVariable, runSpeed and speedMultiplierMod for
+// every movement packet, which is verbose. Only enabled to measure why a mounted
+// player is rejected by checkPlayerSpeedTest.
+#define DEBUG_SPEED_HACK
+
 #ifdef WITH_SWGREALMS_API
 #include "server/login/SWGRealmsAPI.h"
 #endif // WITH_SWGREALMS_API
