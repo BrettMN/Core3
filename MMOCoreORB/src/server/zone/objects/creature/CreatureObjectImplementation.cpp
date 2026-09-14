@@ -2524,7 +2524,8 @@ void CreatureObjectImplementation::notifyLoadFromDatabase() {
 	auto skillManager = SkillManager::instance();
 	const SkillList* playerSkillList = getSkillList();
 
-	int totalSkillPointsWasted = 250;
+	// NON-STOCK: was a hardcoded 250; see SkillManager::loadLuaConfig.
+	int totalSkillPointsWasted = skillManager->getMaxSkillPoints();
 
 	for (int i = 0; i < playerSkillList->size(); ++i) {
 		Skill* skill = playerSkillList->get(i);

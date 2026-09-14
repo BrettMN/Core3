@@ -54,10 +54,10 @@ performanceDuration = 86400 -- in seconds
 medicalDuration = 86400     -- in seconds
 
 --Sets the experience multiplier while grouped
-groupExpMultiplier = 10.0
+groupExpMultiplier = 100.0
 
 --Sets a global experience multiplier
-globalExpMultiplier = 5.0
+globalExpMultiplier = 50.0
 
 --Sets the base number of control devices of each type that a player can have in their datapad at once
 --For creature pets, A Creature Handler will have the base number + their stored pets skill mod as limit
@@ -76,7 +76,7 @@ baseStoredShips = 10
 -- a milestone 0 would present an empty selection window.
 veteranRewardMilestones = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 } --days, must be sorted low to high
 
-veteranRewardAdditionalMilestones = 1 --frequency, in days, of additional milestones (beyond the established ones)
+veteranRewardAdditionalMilestones = 1                               --frequency, in days, of additional milestones (beyond the established ones)
 
 -- Set non-zero to make every milestone above claimable regardless of account age,
 -- so a player can claim one reward per listed milestone in a single sitting

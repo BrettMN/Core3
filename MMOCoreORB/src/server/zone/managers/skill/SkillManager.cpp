@@ -32,6 +32,7 @@ SkillManager::SkillManager()
 	performanceManager = new PerformanceManager();
 
 	apprenticeshipEnabled = false;
+	maxSkillPoints = 250;
 }
 
 SkillManager::~SkillManager() {
@@ -60,6 +61,26 @@ void SkillManager::loadLuaConfig() {
 	lua->runFile("scripts/managers/skill_manager.lua");
 
 	apprenticeshipEnabled = lua->getGlobalByte("apprenticeshipEnabled");
+
+	// NON-STOCK: the skill point pool is recalculated from scratch whenever a skill
+	// is trained, surrendered or a character loads, and any stored value that
+	// disagrees is overwritten. Those recalculations must use the same total that
+	// character creation grants, or a raised pool is reset to 250 minus spent the
+	// first time a box is trained. Read it from the creation config so there is a
+	// single source of truth. This runs at zone startup, before any character loads.
+	Lua* creationLua = new Lua();
+	creationLua->init();
+
+	if (creationLua->runFile("scripts/managers/player_creation_manager.lua")) {
+		int configuredPoints = creationLua->getGlobalInt("skillPoints");
+
+		if (configuredPoints > 0) {
+			maxSkillPoints = configuredPoints;
+		}
+	}
+
+	delete creationLua;
+	creationLua = nullptr;
 
 	delete lua;
 	lua = nullptr;
@@ -424,7 +445,7 @@ bool SkillManager::awardSkill(const String& skillName, CreatureObject* creature,
 
 		const SkillList* list = creature->getSkillList();
 
-		int totalSkillPointsWasted = 250;
+		int totalSkillPointsWasted = getMaxSkillPoints();
 
 		for (int i = 0; i < list->size(); ++i) {
 			Skill* skill = list->get(i);
@@ -630,7 +651,7 @@ bool SkillManager::surrenderSkill(const String& skillName, CreatureObject* creat
 
 		const SkillList* list = creature->getSkillList();
 
-		int totalSkillPointsWasted = 250;
+		int totalSkillPointsWasted = getMaxSkillPoints();
 
 		for (int i = 0; i < list->size(); ++i) {
 			Skill* skill = list->get(i);

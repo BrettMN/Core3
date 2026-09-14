@@ -56,6 +56,11 @@ class SkillManager : public Singleton<SkillManager>, public Logger, public Objec
 
 	bool apprenticeshipEnabled;
 
+	// NON-STOCK: total skill points a character has, read from skillPoints in
+	// scripts/managers/player_creation_manager.lua. Stock Core3 hardcodes 250 in
+	// every place that recalculates a character's remaining points.
+	int maxSkillPoints;
+
 public:
 	SkillManager();
 	~SkillManager();
@@ -134,6 +139,10 @@ public:
 
 	inline bool isApprenticeshipEnabled() const {
 		return apprenticeshipEnabled;
+	}
+
+	inline int getMaxSkillPoints() const {
+		return maxSkillPoints;
 	}
 
 	void removeSkillRelatedMissions(CreatureObject* creature, Skill* skill);
