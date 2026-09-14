@@ -1834,11 +1834,22 @@ float CreatureObjectImplementation::getSpeedModifier() const {
 			modifier = getSkillMod("private_speed_multiplier") * 0.01f;
 		}
 
-		// Players only: mobs keep stock speed, and a mounted player's speed comes
-		// from the vehicle's own values rather than this modifier.
+		// Players only: mobs keep stock speed.
 		// Checked via the template rather than isPlayerCreature(), which is not
 		// const and so cannot be called from this const method.
-		if (templateObject != nullptr && templateObject->isPlayerCreatureTemplate()) {
+		//
+		// Excluded while mounted. The client drives a mount at the vehicle's run
+		// speed times the RIDER's speedMultiplierMod, which MountCommand pushes to
+		// the client via updateSpeedAndAccelerationMods, but
+		// PlayerManagerImplementation::checkPlayerSpeedTest validates a mounted
+		// player against the VEHICLE's speedMultiplierMod. Leaving the multiplier on
+		// here makes the client ride at 2x the vehicle's speed while the server
+		// ceiling stays at 1x, and every movement packet is rejected -- the player
+		// is repeatedly snapped back to their last validated position. Vehicle speed
+		// is scaled separately in loadTemplateData, which raises the server ceiling
+		// too because that check reads vehicle->getRunSpeed().
+		if (templateObject != nullptr && templateObject->isPlayerCreatureTemplate()
+				&& !hasState(CreatureState::RIDINGMOUNT)) {
 			modifier *= PLAYER_RUN_SPEED_MULTIPLIER;
 		}
 	} else if (posture == CreaturePosture::PRONE) {
