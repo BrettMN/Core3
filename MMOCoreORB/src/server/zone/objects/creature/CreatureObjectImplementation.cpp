@@ -96,8 +96,45 @@
 
 float CreatureObjectImplementation::DEFAULTRUNSPEED = 5.376f;
 
+// NON-STOCK: 4x vehicle speed and acceleration. Set to 1.f for stock behaviour.
+static constexpr float VEHICLE_SPEED_MULTIPLIER = 4.f;
+
+// NON-STOCK: re-derives a vehicle's movement values from its template, scaled.
+// Always computed from the template and never from the current values, so it is
+// idempotent and cannot compound however many times it runs.
+static void applyVehicleSpeedScaling(const SharedCreatureObjectTemplate* creoData, float& runSpeed, float& walkSpeed,
+		float& runAcceleration, float& walkAcceleration) {
+	if (creoData == nullptr) {
+		return;
+	}
+
+	const auto& speedTempl = creoData->getSpeed();
+
+	if (speedTempl.size() > 1) {
+		runSpeed = speedTempl.get(0) * VEHICLE_SPEED_MULTIPLIER;
+		walkSpeed = speedTempl.get(1) * VEHICLE_SPEED_MULTIPLIER;
+	}
+
+	const auto& accel = creoData->getAcceleration();
+
+	if (accel.size() > 1) {
+		runAcceleration = accel.get(0) * VEHICLE_SPEED_MULTIPLIER;
+		walkAcceleration = accel.get(1) * VEHICLE_SPEED_MULTIPLIER;
+	}
+}
+
 void CreatureObjectImplementation::initializeTransientMembers() {
 	TangibleObjectImplementation::initializeTransientMembers();
+
+	// NON-STOCK: runSpeed, walkSpeed and the acceleration fields are persisted, so
+	// scaling them in loadTemplateData only reaches newly created objects --
+	// deserialization runs afterwards and restores the stored stock values. This
+	// hook runs after deserialization, so re-deriving here also covers vehicles
+	// that existed before the multiplier did.
+	if (isVehicleObject()) {
+		applyVehicleSpeedScaling(dynamic_cast<const SharedCreatureObjectTemplate*>(getObjectTemplate()), runSpeed,
+				walkSpeed, runAcceleration, walkAcceleration);
+	}
 
 	groupInviterID = 0;
 	groupInviteCounter = 0;
@@ -187,9 +224,6 @@ void CreatureObjectImplementation::initializeMembers() {
 	setContainerDenyPermission("owner", ContainerPermissions::MOVECONTAINER);
 }
 
-// NON-STOCK: 4x vehicle speed and acceleration. Set to 1.f for stock behaviour.
-static constexpr float VEHICLE_SPEED_MULTIPLIER = 4.f;
-
 void CreatureObjectImplementation::loadTemplateData(SharedObjectTemplate* templateData) {
 	TangibleObjectImplementation::loadTemplateData(templateData);
 
@@ -250,14 +284,6 @@ void CreatureObjectImplementation::loadTemplateData(SharedObjectTemplate* templa
 	if (accel.size() > 0) {
 		runAcceleration = accel.get(0);
 		walkAcceleration = accel.get(1);
-
-		// NON-STOCK: scaled alongside the 4x vehicle speed below. Without this a
-		// vehicle still reaches 4x top speed but takes four times as long to get
-		// there, which reads as sluggish rather than fast.
-		if (isVehicleObject()) {
-			runAcceleration *= VEHICLE_SPEED_MULTIPLIER;
-			walkAcceleration *= VEHICLE_SPEED_MULTIPLIER;
-		}
 	} else {
 		runAcceleration = 0;
 		walkAcceleration = 0;
@@ -268,22 +294,19 @@ void CreatureObjectImplementation::loadTemplateData(SharedObjectTemplate* templa
 	if (speedTempl.size() > 0) {
 		runSpeed = speedTempl.get(0);
 		walkSpeed = speedTempl.get(1);
-
-		// NON-STOCK: 4x vehicle speed. Scaled here, at template load, on purpose:
-		// this runs fresh from the client template every time the object is loaded,
-		// so the value cannot compound the way setRunSpeed(getRunSpeed() * mod) in
-		// PlayerVehicleBuffImplementation::updateRiderSpeeds can. The client gets the
-		// scaled value in the vehicle's CREO baseline, and the speed hack check reads
-		// vehicle->getRunSpeed() for mounted players, so its ceiling scales too.
-		// Creature mounts are unaffected: their speed comes from PetManager's mount
-		// speed datatable, not from this template. Set to 1.f for stock behaviour.
-		if (isVehicleObject()) {
-			runSpeed *= VEHICLE_SPEED_MULTIPLIER;
-			walkSpeed *= VEHICLE_SPEED_MULTIPLIER;
-		}
 	} else {
 		runSpeed = 0;
 		walkSpeed = 0;
+	}
+
+	// NON-STOCK: 4x vehicle speed for newly created vehicles. initializeTransientMembers
+	// covers the ones restored from the database, whose persisted values are written
+	// after this runs. The client gets the scaled value in the vehicle's CREO
+	// baseline, and checkPlayerSpeedTest reads vehicle->getRunSpeed() for a mounted
+	// player, so the anti-cheat ceiling scales with it. Creature mounts are
+	// unaffected: their speed comes from PetManager's mount speed datatable.
+	if (isVehicleObject()) {
+		applyVehicleSpeedScaling(creoData, runSpeed, walkSpeed, runAcceleration, walkAcceleration);
 	}
 
 	auto zoneServer = ServerCore::getZoneServer();
