@@ -166,12 +166,17 @@ docker exec -it swgemu-core3 su - swgemu -c 'screen -D -RR swgemu-server'
 At the `>` prompt:
 
 ```
-shutdown 0 fast
+shutdown 0
 ```
 
 The argument is required; bare `shutdown` only prints usage. Use `0` for
 immediate or `5` to warn players first. When gdb returns to its `(gdb)` prompt,
 type `quit`, then `run` to start again.
+
+Do not pass `fast` or `json` alongside the number. `UnsignedInteger::valueOf` is
+called on the whole argument string, so `shutdown 0 fast` fails to parse and only
+prints the usage line -- the usage text advertises a combination the parser does
+not accept.
 
 Other useful console commands: `save` (flush to disk without stopping), `info`
 (server state), `help` (full list).
@@ -182,7 +187,7 @@ For a hard restart that also clears a zombie process:
 docker restart swgemu-core3
 ```
 
-This kills the server mid-flight, so prefer `shutdown 0 fast` when world state
+This kills the server mid-flight, so prefer `shutdown 0` when world state
 matters.
 
 ## Ports
