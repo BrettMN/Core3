@@ -1,5 +1,6 @@
 
 #include "server/zone/managers/creature/PetManager.h"
+#include "server/zone/CustomTuning.h"
 #include "server/zone/ZoneServer.h"
 #include "server/zone/managers/creature/ValidMountScaleRange.h"
 #include "server/zone/managers/name/NameManager.h"
@@ -140,6 +141,15 @@ MountSpeedData* PetManagerImplementation::getMountSpeedData(const String& appear
 }
 
 float PetManagerImplementation::getMountedRunSpeed(CreatureObject* mount) {
+	// NON-STOCK: creature mount speeds come from the mount speed datatable rather
+	// than the object template, so the 4x scaling applied in
+	// CreatureObjectImplementation does not reach them. Scale here to match, which
+	// is what raises the anti-cheat ceiling for a mounted rider --
+	// checkPlayerSpeedTest calls this for a creature mount. Without it, the 4x
+	// rider modifier in CreatureObjectImplementation::getSpeedModifier would put
+	// the client above the server's limit and the rider would be snapped back.
+	// Vehicles already carry the multiplier in their own runSpeed. Set to 1.f in
+	// CreatureObjectImplementation for stock behaviour.
 	if (!mount->isMount())
 		return mount->getRunSpeed();
 
@@ -152,7 +162,7 @@ float PetManagerImplementation::getMountedRunSpeed(CreatureObject* mount) {
 			MountSpeedData* mountSpeedData = getMountSpeedData(objectTemplate->getAppearanceFilename());
 
 			if (mountSpeedData != nullptr)
-				return mountSpeedData->getRunSpeed();
+				return mountSpeedData->getRunSpeed() * server::zone::VEHICLE_SPEED_MULTIPLIER;
 		}
 	}
 

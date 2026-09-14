@@ -65,6 +65,7 @@
 #include "terrain/manager/TerrainManager.h"
 
 #include "templates/creature/SharedCreatureObjectTemplate.h"
+#include "server/zone/CustomTuning.h"
 
 #include "variables/Skill.h"
 #include "server/zone/objects/player/sessions/EntertainingSession.h"
@@ -96,9 +97,6 @@
 
 float CreatureObjectImplementation::DEFAULTRUNSPEED = 5.376f;
 
-// NON-STOCK: 4x vehicle speed and acceleration. Set to 1.f for stock behaviour.
-static constexpr float VEHICLE_SPEED_MULTIPLIER = 4.f;
-
 // NON-STOCK: re-derives a vehicle's movement values from its template, scaled.
 // Always computed from the template and never from the current values, so it is
 // idempotent and cannot compound however many times it runs.
@@ -111,15 +109,15 @@ static void applyVehicleSpeedScaling(const SharedCreatureObjectTemplate* creoDat
 	const auto& speedTempl = creoData->getSpeed();
 
 	if (speedTempl.size() > 1) {
-		runSpeed = speedTempl.get(0) * VEHICLE_SPEED_MULTIPLIER;
-		walkSpeed = speedTempl.get(1) * VEHICLE_SPEED_MULTIPLIER;
+		runSpeed = speedTempl.get(0) * server::zone::VEHICLE_SPEED_MULTIPLIER;
+		walkSpeed = speedTempl.get(1) * server::zone::VEHICLE_SPEED_MULTIPLIER;
 	}
 
 	const auto& accel = creoData->getAcceleration();
 
 	if (accel.size() > 1) {
-		runAcceleration = accel.get(0) * VEHICLE_SPEED_MULTIPLIER;
-		walkAcceleration = accel.get(1) * VEHICLE_SPEED_MULTIPLIER;
+		runAcceleration = accel.get(0) * server::zone::VEHICLE_SPEED_MULTIPLIER;
+		walkAcceleration = accel.get(1) * server::zone::VEHICLE_SPEED_MULTIPLIER;
 	}
 }
 
@@ -1841,14 +1839,6 @@ void CreatureObjectImplementation::setPosture(int newPosture, bool immediate, bo
 	updatePostures(immediate);
 }
 
-// NON-STOCK: 2x player run speed. Applied here rather than by a buff so it is
-// recomputed from scratch on every update and can never accumulate. The speed
-// hack check in PlayerManagerImplementation::checkPlayerSpeedTest derives its
-// ceiling from getSpeedMultiplierMod(), which comes from this function, so the
-// allowance scales with the multiplier instead of flagging the player.
-// Set PLAYER_RUN_SPEED_MULTIPLIER back to 1.f for stock behaviour.
-static constexpr float PLAYER_RUN_SPEED_MULTIPLIER = 2.f;
-
 float CreatureObjectImplementation::getSpeedModifier() const {
 	float modifier = 1.f;
 
@@ -1861,19 +1851,26 @@ float CreatureObjectImplementation::getSpeedModifier() const {
 		// Checked via the template rather than isPlayerCreature(), which is not
 		// const and so cannot be called from this const method.
 		//
-		// Excluded while mounted. The client drives a mount at the vehicle's run
-		// speed times the RIDER's speedMultiplierMod, which MountCommand pushes to
-		// the client via updateSpeedAndAccelerationMods, but
-		// PlayerManagerImplementation::checkPlayerSpeedTest validates a mounted
-		// player against the VEHICLE's speedMultiplierMod. Leaving the multiplier on
-		// here makes the client ride at 2x the vehicle's speed while the server
-		// ceiling stays at 1x, and every movement packet is rejected -- the player
-		// is repeatedly snapped back to their last validated position. Vehicle speed
-		// is scaled separately in loadTemplateData, which raises the server ceiling
-		// too because that check reads vehicle->getRunSpeed().
-		if (templateObject != nullptr && templateObject->isPlayerCreatureTemplate()
-				&& !hasState(CreatureState::RIDINGMOUNT)) {
-			modifier *= PLAYER_RUN_SPEED_MULTIPLIER;
+		// The mounted case uses the vehicle multiplier rather than the on-foot one.
+		// The client does not take a mount's speed from the server's runSpeed: it
+		// uses its own client-side value for the mount and multiplies it by the
+		// RIDER's speedMultiplierMod, which MountCommand pushes to the client via
+		// updateSpeedAndAccelerationMods. Measured with DEBUG_SPEED_HACK: with the
+		// vehicle's runSpeed raised to 44 and the rider's modifier left at 1, the
+		// client still drove an X-31 at its stock 11 across 55 samples.
+		//
+		// The matching vehicle-side scaling is still required. checkPlayerSpeedTest
+		// validates a mounted player against the VEHICLE's runSpeed, so that value is
+		// what raises the anti-cheat ceiling (to ~46.7 here) and keeps a 4x rider
+		// from being rejected and snapped back to their last validated position.
+		// Creature mounts are covered by the matching scaling in
+		// PetManagerImplementation::getMountedRunSpeed.
+		if (templateObject != nullptr && templateObject->isPlayerCreatureTemplate()) {
+			if (hasState(CreatureState::RIDINGMOUNT)) {
+				modifier *= server::zone::VEHICLE_SPEED_MULTIPLIER;
+			} else {
+				modifier *= server::zone::PLAYER_RUN_SPEED_MULTIPLIER;
+			}
 		}
 	} else if (posture == CreaturePosture::PRONE) {
 		if (getSkillMod("slope_move") > 50) {
