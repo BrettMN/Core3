@@ -2635,11 +2635,6 @@ int PlayerManagerImplementation::awardExperience(CreatureObject* player, const S
 		xp = playerObject->addExperience(trx, xpType, (int)amount);
 	}
 
-	// TEMPORARY DIAGNOSTIC -- remove once the global XP multiplier is confirmed.
-	player->info(true) << "XPDIAG type=" << xpType << " base=" << amount << " applyModifiers=" << applyModifiers
-		<< " species=" << speciesModifier << " buff=" << buffMultiplier << " local=" << localMultiplier
-		<< " global=" << globalExpMultiplier << " awarded=" << xp
-		<< " capped=" << playerObject->hasCappedExperience(xpType);
 
 	player->notifyObservers(ObserverEventType::XPAWARDED, player, xp);
 
