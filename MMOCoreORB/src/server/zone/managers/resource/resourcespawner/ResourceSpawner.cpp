@@ -3,6 +3,7 @@
 		See file COPYING for copying conditions. */
 
 #include "ResourceSpawner.h"
+#include "server/zone/CustomTuning.h"
 #include "server/zone/Zone.h"
 #include "server/zone/objects/player/PlayerObject.h"
 #include "server/zone/objects/tangible/tool/SurveyTool.h"
@@ -117,6 +118,23 @@ void ResourceSpawner::start() {
 	shiftResources();
 }
 
+// NON-STOCK: true if the spawn has any applicable stat below RESOURCE_STAT_VALUE,
+// meaning it was rolled before stats were fixed at that value.
+static bool hasStatBelowTarget(ResourceSpawn* spawn) {
+	for (int i = 0; i < 16; ++i) {
+		String attribute = "";
+		int value = spawn->getAttributeAndValue(attribute, i);
+
+		if (attribute.isEmpty())
+			break;
+
+		if (value > 0 && value < server::zone::RESOURCE_STAT_VALUE)
+			return true;
+	}
+
+	return false;
+}
+
 void ResourceSpawner::loadResourceSpawns() {
 	ObjectDatabase* resourceDatabase = ObjectDatabaseManager::instance()->loadObjectDatabase("resourcespawns", true);
 
@@ -132,6 +150,14 @@ void ResourceSpawner::loadResourceSpawns() {
 		if (resourceSpawn == nullptr) {
 			error("Trying to load object as ResourceSpawn that is not a resource spawn");
 			continue;
+		}
+
+		// NON-STOCK: retire active spawns rolled before stats were fixed at
+		// RESOURCE_STAT_VALUE. Same mechanism as the admin /resource despawn; the
+		// shiftResources() call that follows in start() spawns replacements.
+		if (resourceSpawn->inShift() && hasStatBelowTarget(resourceSpawn)) {
+			Locker locker(resourceSpawn);
+			resourceSpawn->setDespawned(time(0) - 1);
 		}
 
 		// Create spawn maps for zones that were disabled when the resource spawned
@@ -560,7 +586,8 @@ int ResourceSpawner::randomizeValue(int min, int max) {
 	if (min == 0 && max == 0)
 		return 0;
 
-	return max;
+	// NON-STOCK: fixed value for every applicable stat, see RESOURCE_STAT_VALUE.
+	return server::zone::RESOURCE_STAT_VALUE;
 
 	// if (min > lowerGateOverride)
 	// 	min = lowerGateOverride;
