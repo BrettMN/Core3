@@ -62,18 +62,18 @@ constexpr float VEHICLE_SPEED_MULTIPLIER = 4.f;
 constexpr int DOT_MAX_ABSORPTION = 100;
 
 /*
- * Value every applicable stat of a newly spawned resource takes. Stock rolls
- * randomly within the resource type's range; the client resource tree caps 38% of
- * attribute ranges below 1000 (for example malleability 500 on Rori horn), so
- * returning the type maximum did not give 1000s. Attributes a type does not have
- * (range 0-0) stay 0.
+ * Added to every applicable stat of a newly spawned resource, on top of the stock
+ * random roll within the resource type's range, so spawns keep their variety but
+ * are all strong. Attributes a type does not have (range 0-0) stay 0.
  *
- * ResourceSpawner::loadResourceSpawns retires any active spawn with an applicable
- * stat below this value at startup, and the startup shift replaces it, so a change
- * here takes effect on the next restart instead of when old spawns expire (6 to 22
- * days with stock aveduration).
+ * Every attribute range in the client resource tree has a minimum of at least 1
+ * (checked across all 3100 ranges), so a boosted stat is always above this value.
+ * ResourceSpawner::loadResourceSpawns relies on that: at startup it retires any
+ * active spawn with an applicable stat at or below this value, which catches both
+ * stock spawns and spawns from before the bonus existed, and the startup shift
+ * replaces them. Set to 0 for stock behaviour (the startup check then does nothing).
  */
-constexpr int RESOURCE_STAT_VALUE = 1000;
+constexpr int RESOURCE_STAT_BONUS = 1000;
 
 } // namespace zone
 } // namespace server

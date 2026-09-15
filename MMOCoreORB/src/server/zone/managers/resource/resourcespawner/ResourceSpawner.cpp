@@ -118,8 +118,8 @@ void ResourceSpawner::start() {
 	shiftResources();
 }
 
-// NON-STOCK: true if the spawn has any applicable stat below RESOURCE_STAT_VALUE,
-// meaning it was rolled before stats were fixed at that value.
+// NON-STOCK: true if the spawn has any applicable stat at or below
+// RESOURCE_STAT_BONUS, meaning it was rolled without the bonus.
 static bool hasStatBelowTarget(ResourceSpawn* spawn) {
 	for (int i = 0; i < 16; ++i) {
 		String attribute = "";
@@ -128,7 +128,7 @@ static bool hasStatBelowTarget(ResourceSpawn* spawn) {
 		if (attribute.isEmpty())
 			break;
 
-		if (value > 0 && value < server::zone::RESOURCE_STAT_VALUE)
+		if (value > 0 && value <= server::zone::RESOURCE_STAT_BONUS)
 			return true;
 	}
 
@@ -152,10 +152,10 @@ void ResourceSpawner::loadResourceSpawns() {
 			continue;
 		}
 
-		// NON-STOCK: retire active spawns rolled before stats were fixed at
-		// RESOURCE_STAT_VALUE. Same mechanism as the admin /resource despawn; the
-		// shiftResources() call that follows in start() spawns replacements.
-		if (resourceSpawn->inShift() && hasStatBelowTarget(resourceSpawn)) {
+		// NON-STOCK: retire active spawns rolled without RESOURCE_STAT_BONUS. Same
+		// mechanism as the admin /resource despawn; the shiftResources() call that
+		// follows in start() spawns replacements.
+		if (server::zone::RESOURCE_STAT_BONUS > 0 && resourceSpawn->inShift() && hasStatBelowTarget(resourceSpawn)) {
 			Locker locker(resourceSpawn);
 			resourceSpawn->setDespawned(time(0) - 1);
 		}
@@ -586,30 +586,28 @@ int ResourceSpawner::randomizeValue(int min, int max) {
 	if (min == 0 && max == 0)
 		return 0;
 
-	// NON-STOCK: fixed value for every applicable stat, see RESOURCE_STAT_VALUE.
-	return server::zone::RESOURCE_STAT_VALUE;
+	if (min > lowerGateOverride)
+		min = lowerGateOverride;
 
-	// if (min > lowerGateOverride)
-	// 	min = lowerGateOverride;
+	int randomStat = System::random(max - min) + min;
 
-	// int randomStat = System::random(max - min) + min;
+	if (spawnThrottling < 90) {
+		int breakpoint = ((spawnThrottling * (max - min)) / 100) + min;
+		bool aboveBreakpoint = System::random(9) == 7;
 
-	// if (spawnThrottling < 90) {
-	// 	int breakpoint = ((spawnThrottling * (max - min)) / 100) + min;
-	// 	bool aboveBreakpoint = System::random(9) == 7;
+		if ((aboveBreakpoint && randomStat < breakpoint) || (!aboveBreakpoint && randomStat > breakpoint)) {
+			if (aboveBreakpoint) {
+				while (randomStat < breakpoint)
+					randomStat = System::random(max - min) + min;
+			} else {
+				while (randomStat > breakpoint)
+					randomStat = System::random(max - min) + min;
+			}
+		}
+	}
 
-	// 	if ((aboveBreakpoint && randomStat < breakpoint) || (!aboveBreakpoint && randomStat > breakpoint)) {
-	// 		if (aboveBreakpoint) {
-	// 			while (randomStat < breakpoint)
-	// 				randomStat = System::random(max - min) + min;
-	// 		} else {
-	// 			while (randomStat > breakpoint)
-	// 				randomStat = System::random(max - min) + min;
-	// 		}
-	// 	}
-	// }
-
-	// return randomStat;
+	// NON-STOCK: stock random roll plus a flat bonus, see RESOURCE_STAT_BONUS.
+	return randomStat + server::zone::RESOURCE_STAT_BONUS;
 }
 
 long ResourceSpawner::getRandomExpirationTime(const ResourceTreeEntry* resourceEntry) {
