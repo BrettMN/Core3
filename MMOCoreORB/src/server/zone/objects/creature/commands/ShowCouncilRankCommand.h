@@ -29,12 +29,19 @@ public:
 		if (ghost == nullptr)
 			return GENERALERROR;
 
-		FrsData* playerData = ghost->getFrsData();
-		int playerCouncil = playerData->getCouncilType();
-		int curPlayerRank = playerData->getRank();
+		// NON-STOCK: a member of both councils picks one with "light" or "dark";
+		// otherwise the council the character belongs to is shown, as stock.
+		String args = arguments.toString().toLowerCase();
+		int playerCouncil = 0;
 
-		if (curPlayerRank < 0)
-			return GENERALERROR;
+		if (args.contains("dark") && ghost->getFrsRankForCouncil(FrsManager::COUNCIL_DARK) >= 0)
+			playerCouncil = FrsManager::COUNCIL_DARK;
+		else if (args.contains("light") && ghost->getFrsRankForCouncil(FrsManager::COUNCIL_LIGHT) >= 0)
+			playerCouncil = FrsManager::COUNCIL_LIGHT;
+		else if (ghost->getFrsRankForCouncil(FrsManager::COUNCIL_LIGHT) >= 0)
+			playerCouncil = FrsManager::COUNCIL_LIGHT;
+		else if (ghost->getFrsRankForCouncil(FrsManager::COUNCIL_DARK) >= 0)
+			playerCouncil = FrsManager::COUNCIL_DARK;
 
 		if (playerCouncil == 0)
 			return GENERALERROR;

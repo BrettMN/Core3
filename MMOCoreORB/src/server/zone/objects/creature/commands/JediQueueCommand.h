@@ -202,26 +202,20 @@ public:
 
 		Locker locker(player);
 
-		FrsData* playerData = ghost->getFrsData();
-		short councilType = playerData->getCouncilType();
+		// NON-STOCK: sum the bonus of every council the character belongs to.
+		bool light = ghost->getFrsDataForCouncil(FrsManager::COUNCIL_LIGHT) != nullptr;
+		bool dark = ghost->getFrsDataForCouncil(FrsManager::COUNCIL_DARK) != nullptr;
+		int lightControl = light ? player->getSkillMod("force_control_light") : 0;
+		int darkControl = dark ? player->getSkillMod("force_control_dark") : 0;
 
 		locker.release();
 
-		float buffModifier = 0;
-		int controlModifier = 0;
+		float bonus = lightControl * frsLightBuffModifier + darkControl * frsDarkBuffModifier;
 
-		if (councilType == FrsManager::COUNCIL_LIGHT) {
-			controlModifier = player->getSkillMod("force_control_light");
-			buffModifier = frsLightBuffModifier;
-		} else if (councilType == FrsManager::COUNCIL_DARK) {
-			controlModifier = player->getSkillMod("force_control_dark");
-			buffModifier = frsDarkBuffModifier;
-		}
-
-		if (controlModifier == 0 || buffModifier == 0)
+		if (bonus == 0)
 			return amount;
 
-		return amount + (int)((controlModifier * buffModifier) + 0.5f);
+		return amount + (int)(bonus + 0.5f);
 	}
 
 
@@ -233,26 +227,20 @@ public:
 
 		Locker locker(creature);
 
-		FrsData* playerData = ghost->getFrsData();
-		int councilType = playerData->getCouncilType();
+		// NON-STOCK: sum the modifier of every council the character belongs to.
+		bool light = ghost->getFrsDataForCouncil(FrsManager::COUNCIL_LIGHT) != nullptr;
+		bool dark = ghost->getFrsDataForCouncil(FrsManager::COUNCIL_DARK) != nullptr;
+		int lightManipulation = light ? creature->getSkillMod("force_manipulation_light") : 0;
+		int darkManipulation = dark ? creature->getSkillMod("force_manipulation_dark") : 0;
 
 		locker.release();
 
-		int manipulationMod = 0;
-		float frsModifier = 0;
+		float adjustment = lightManipulation * frsLightForceCostModifier + darkManipulation * frsDarkForceCostModifier;
 
-		if (councilType == FrsManager::COUNCIL_LIGHT) {
-			manipulationMod = creature->getSkillMod("force_manipulation_light");
-			frsModifier = frsLightForceCostModifier;
-		} else if (councilType == FrsManager::COUNCIL_DARK) {
-			manipulationMod = creature->getSkillMod("force_manipulation_dark");
-			frsModifier = frsDarkForceCostModifier;
-		}
-
-		if (manipulationMod == 0 || frsModifier == 0)
+		if (adjustment == 0)
 			return forceCost;
 
-		return forceCost + (int)((manipulationMod * frsModifier) + .5);
+		return forceCost + (int)(adjustment + .5);
 	}
 
 	float getFrsModifiedExtraForceCost(CreatureObject* creature, float val) const {
@@ -263,26 +251,15 @@ public:
 
 		Locker locker(creature);
 
-		FrsData* playerData = ghost->getFrsData();
-		int councilType = playerData->getCouncilType();
+		// NON-STOCK: sum the modifier of every council the character belongs to.
+		bool light = ghost->getFrsDataForCouncil(FrsManager::COUNCIL_LIGHT) != nullptr;
+		bool dark = ghost->getFrsDataForCouncil(FrsManager::COUNCIL_DARK) != nullptr;
+		int lightManipulation = light ? creature->getSkillMod("force_manipulation_light") : 0;
+		int darkManipulation = dark ? creature->getSkillMod("force_manipulation_dark") : 0;
 
 		locker.release();
 
-		int manipulationMod = 0;
-		float frsModifier = 0;
-
-		if (councilType == FrsManager::COUNCIL_LIGHT) {
-			manipulationMod = creature->getSkillMod("force_manipulation_light");
-			frsModifier = frsLightExtraForceCostModifier;
-		} else if (councilType == FrsManager::COUNCIL_DARK) {
-			manipulationMod = creature->getSkillMod("force_manipulation_dark");
-			frsModifier = frsDarkExtraForceCostModifier;
-		}
-
-		if (manipulationMod == 0 || frsModifier == 0)
-			return val;
-
-		return val + ((float)manipulationMod * frsModifier);
+		return val + ((float)lightManipulation * frsLightExtraForceCostModifier) + ((float)darkManipulation * frsDarkExtraForceCostModifier);
 	}
 
 	void doForceCost(CreatureObject* creature) const {

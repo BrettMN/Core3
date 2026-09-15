@@ -465,11 +465,13 @@ template<> bool CheckProspectJediTrial::check(AiAgent* agent) const {
 	if (ghost == nullptr)
 		return false;
 
-	int councilType = ghost->getFrsData()->getCouncilType();
+	// NON-STOCK: membership-based so a member of both councils is handled.
+	bool dark = ghost->getFrsDataForCouncil(FrsManager::COUNCIL_DARK) != nullptr;
+	bool light = ghost->getFrsDataForCouncil(FrsManager::COUNCIL_LIGHT) != nullptr;
 	String objName = agent->getObjectNameStringIdName().toCharArray();
 
-	return (councilType == FrsManager::COUNCIL_DARK && objName != "dark_jedi_sentinel")
-		|| (councilType == FrsManager::COUNCIL_LIGHT && objName != "light_jedi_sentinel");
+	return (dark && objName != "dark_jedi_sentinel")
+		|| (light && objName != "light_jedi_sentinel");
 }
 
 template<> bool CheckProspectIsIncapacitated::check(AiAgent* agent) const {

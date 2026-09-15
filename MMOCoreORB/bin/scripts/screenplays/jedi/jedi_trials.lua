@@ -190,7 +190,7 @@ function JediTrials:unlockJediKnight(pPlayer)
 	PlayerObject(pGhost):addWaypoint(enclaveLoc[3], enclaveName, "", enclaveLoc[1], 0, enclaveLoc[2], WAYPOINT_YELLOW, true, true, 0)
 	PlayerObject(pGhost):setJediState(jediState)
 	PlayerObject(pGhost):setFrsCouncil(councilType)
-	PlayerObject(pGhost):setFrsRank(0)
+	PlayerObject(pGhost):setFrsRank(0, councilType)
 	CreatureObject(pPlayer):setFactionStatus(2) -- Overt
 	CreatureObject(pPlayer):setFaction(setFactionVal)
 
@@ -490,6 +490,60 @@ function JediTrials:completePadawanForTesting(pPlayer)
 	writeScreenPlayData(pPlayer, "PadawanTrials", "startedTrials", 1)
 	self:setTrialsCompleted(pPlayer, #padawanTrialQuests)
 	self:unlockJediPadawan(pPlayer, true)
+end
+
+-- NON-STOCK: joins a Knight who already belongs to one council to the other as
+-- well, keeping the existing membership, rank and skills. Jedi state becomes the
+-- higher of the two councils' values (Light 4, Dark 8); every server check on Jedi
+-- state is a threshold, so the higher value satisfies both. Faction and overt
+-- status are not forced for a member of both councils.
+function JediTrials:joinAdditionalCouncil(pPlayer, councilType)
+	if (pPlayer == nil) then
+		return
+	end
+
+	local pGhost = CreatureObject(pPlayer):getPlayerObject()
+
+	if (pGhost == nil) then
+		return
+	end
+
+	local councilState, noviceSkill, councilName
+
+	if (councilType == self.COUNCIL_LIGHT) then
+		councilState = 4
+		noviceSkill = "force_rank_light_novice"
+		councilName = "Light Jedi Council"
+	elseif (councilType == self.COUNCIL_DARK) then
+		councilState = 8
+		noviceSkill = "force_rank_dark_novice"
+		councilName = "Dark Jedi Council"
+	else
+		printLuaError("Invalid council type in JediTrials:joinAdditionalCouncil")
+		return
+	end
+
+	if (PlayerObject(pGhost):getFrsRank(councilType) >= 0) then
+		CreatureObject(pPlayer):sendSystemMessage("You are already a member of the " .. councilName .. ".")
+		return
+	end
+
+	if (not CreatureObject(pPlayer):hasSkill("force_title_jedi_rank_03")) then
+		awardSkill(pPlayer, "force_title_jedi_rank_03")
+	end
+
+	if (PlayerObject(pGhost):getJediState() < councilState) then
+		PlayerObject(pGhost):setJediState(councilState)
+	end
+
+	PlayerObject(pGhost):setFrsCouncil(councilType)
+	PlayerObject(pGhost):setFrsRank(0, councilType)
+
+	if (not CreatureObject(pPlayer):hasSkill(noviceSkill)) then
+		awardSkill(pPlayer, noviceSkill)
+	end
+
+	CreatureObject(pPlayer):sendSystemMessage("You have joined the " .. councilName .. ".")
 end
 
 function JediTrials:completeKnightForTesting(pPlayer, councilType)

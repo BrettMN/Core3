@@ -216,11 +216,11 @@ public:
 			else
 				return GENERALERROR;
 		} else if (container == "frs") {
-			FrsData* playerData = targetGhost->getFrsData();
-			int playerRank = playerData->getRank();
-			int playerCouncil = playerData->getCouncilType();
+			// NON-STOCK: report both council ranks (-1 = not a member).
+			int lightRank = targetGhost->getFrsRankForCouncil(FrsManager::COUNCIL_LIGHT);
+			int darkRank = targetGhost->getFrsRankForCouncil(FrsManager::COUNCIL_DARK);
 
-			creature->sendSystemMessage(targetCreature->getFirstName() + " has a FRS rank of " + String::valueOf(playerRank) + " and a council type of " + String::valueOf(playerCouncil));
+			creature->sendSystemMessage(targetCreature->getFirstName() + " has a Light council FRS rank of " + String::valueOf(lightRank) + " and a Dark council FRS rank of " + String::valueOf(darkRank) + " (-1 means not a member)");
 		} else if (container == "export") {
 			StringBuffer reason = "/snoop " + targetCreature->getFirstName() + " export by " + creature->getFirstName();
 

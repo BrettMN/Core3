@@ -58,12 +58,8 @@ bool EnclaveContainerComponent::checkBuildingPermission(SceneObject* sceneObject
 	else
 		return false;
 
-	FrsData* frsData = ghost->getFrsData();
-
-	if (frsData == nullptr)
-		return false;
-
-	if (frsData->getCouncilType() == enclaveType)
+	// NON-STOCK: any member of the council that owns this enclave may enter.
+	if (ghost->getFrsDataForCouncil(enclaveType) != nullptr)
 		return true;
 
 	creature->sendSystemMessage("@pvp_rating:enclave_deny_entry"); // A strange force repels you and keeps you from entering.
@@ -101,12 +97,7 @@ bool EnclaveContainerComponent::checkCellPermission(SceneObject* sceneObject, Cr
 	else
 		return false;
 
-	FrsData* frsData = ghost->getFrsData();
-
-	if (frsData == nullptr)
-		return false;
-
-	if (frsData->getCouncilType() != enclaveType)
+	if (ghost->getFrsDataForCouncil(enclaveType) == nullptr)
 		return false;
 
 	SortedVector<String>* groups = ghost->getPermissionGroups();

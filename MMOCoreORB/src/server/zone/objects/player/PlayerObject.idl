@@ -130,6 +130,15 @@ class PlayerObject extends IntangibleObject {
 	@dereferenced
 	protected FrsData frsData;
 
+	// NON-STOCK: second Force Ranking System slot, so a character can belong to
+	// both the Light and Dark councils with an independent rank in each. frsData
+	// is left exactly as stock so existing characters keep loading; this is a new
+	// name-keyed variable, so characters saved before it existed load it as an
+	// empty slot (councilType 0, rank -1). Always look a council up with
+	// getFrsDataForCouncil rather than assuming which slot holds it.
+	@dereferenced
+	protected FrsData secondaryFrsData;
+
 	@dereferenced
 	protected WaypointList waypointList;
 
@@ -1491,6 +1500,44 @@ class PlayerObject extends IntangibleObject {
 	public FrsData getFrsData() {
 		return frsData;
 	}
+
+	/**
+	 * NON-STOCK: the FRS slot holding membership of the given council, or null if
+	 * the character is not a member of it.
+	 */
+	@local
+	@dirty
+	public native FrsData getFrsDataForCouncil(int councilType);
+
+	/**
+	 * NON-STOCK: an FRS slot with no council assigned, or null if the character
+	 * already belongs to two councils.
+	 */
+	@local
+	@dirty
+	public native FrsData getFreeFrsData();
+
+	/**
+	 * NON-STOCK: the character's rank in the given council, or -1 if not a member.
+	 */
+	@local
+	@dirty
+	public native int getFrsRankForCouncil(int councilType);
+
+	/**
+	 * NON-STOCK: true if the character is a member of both councils.
+	 */
+	@local
+	@dirty
+	public native boolean isDualFrsMember();
+
+	/**
+	 * NON-STOCK: the character's highest rank across the councils it belongs to,
+	 * or -1 if it belongs to none.
+	 */
+	@local
+	@dirty
+	public native int getHighestFrsRank();
 
 	@local
 	@read

@@ -154,8 +154,9 @@ class FrsManager extends ManagedService implements Logger {
 	@dereferenced
 	public native Vector<unsigned long> getPlayerListByCouncil(int councilType);
 
+	// NON-STOCK: FRS membership is per council, so rank changes name the council.
 	@arg1preLocked
-	public native void setPlayerRank(CreatureObject player, int rank);
+	public native void setPlayerRank(CreatureObject player, int councilType, int rank);
 
 	public native void playerLoggedIn(CreatureObject player);
 
@@ -166,7 +167,11 @@ class FrsManager extends ManagedService implements Logger {
 	public native boolean isBanned(CreatureObject player);
 
 	@arg1preLocked
-	public native void removeFromFrs(CreatureObject player);
+	public native void removeFromFrs(CreatureObject player, int councilType);
+
+	// NON-STOCK: remove the character from every council it belongs to.
+	@arg1preLocked
+	public native void removeFromAllFrs(CreatureObject player);
 
 	@arg1preLocked
 	public native void handleSkillRevoked(CreatureObject player, final string skillName);
@@ -174,13 +179,13 @@ class FrsManager extends ManagedService implements Logger {
 	public native int getSkillRank(final string skillName, int councilType);
 
 	@arg1preLocked
-	public native void updatePlayerSkills(CreatureObject player);
+	public native void updatePlayerSkills(CreatureObject player, int councilType);
 
 	@arg1preLocked
-	public native void demotePlayer(CreatureObject player);
+	public native void demotePlayer(CreatureObject player, int councilType);
 
 	@arg1preLocked
-	public native void promotePlayer(CreatureObject player);
+	public native void promotePlayer(CreatureObject player, int councilType);
 
 	@arg1preLocked
 	public native void adjustFrsExperience(CreatureObject player, int amount, boolean sendSystemMessage = true);
@@ -191,7 +196,9 @@ class FrsManager extends ManagedService implements Logger {
 	@arg1preLocked
 	public native void addExperienceDebt(CreatureObject player, int amount);
 
-	public native void verifyRoomAccess(CreatureObject player, int playerRank);
+	// NON-STOCK: the rank checked is the character's rank in the council that owns
+	// the enclave it is standing in, so the argument is gone.
+	public native void verifyRoomAccess(CreatureObject player);
 
 	@arg1preLocked
 	@arg2preLocked
@@ -263,7 +270,7 @@ class FrsManager extends ManagedService implements Logger {
 	public native short getEnclaveType(BuildingObject enclave);
 
 	@arg1preLocked
-	public native boolean isEligibleForPromotion(CreatureObject player, int rank);
+	public native boolean isEligibleForPromotion(CreatureObject player, int councilType, int rank);
 
 	@local
 	@arg1preLocked
@@ -341,7 +348,13 @@ class FrsManager extends ManagedService implements Logger {
 	public native void forcePhaseChange(CreatureObject player, short enclaveType, int rank);
 
 	@arg1preLocked
-	public native void recoverJediItems(CreatureObject player);
+	public native void recoverJediItems(CreatureObject player, int councilType);
+
+	// NON-STOCK: the highest force_rank_xp any of the character's council ranks
+	// requires. Spending FRS experience below this would cost a rank in at least
+	// one council, since both ladders draw from the same experience pool.
+	@arg1preLocked
+	public native int getRequiredExperienceFloor(CreatureObject player);
 
 	public native boolean isPlayerInEnclave(CreatureObject player);
 	public native boolean isPlayerInDarkArena(CreatureObject player);

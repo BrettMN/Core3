@@ -473,7 +473,8 @@ int PlayerObjectImplementation::calculateBhReward() {
 	int skillPoints = getSpentJediSkillPoints();
 	int reward = skillPoints * 1000;
 
-	int frsRank = getFrsData()->getRank();
+	// NON-STOCK: highest rank across councils.
+	int frsRank = getHighestFrsRank();
 
 	if (frsRank > 0)
 		reward += frsRank * 100000; // +100k per frs rank
@@ -1764,7 +1765,7 @@ void PlayerObjectImplementation::notifyOnline() {
 	//Login to jedi manager
 	JediManager::instance()->onPlayerLoggedIn(playerCreature);
 
-	if (getFrsData()->getRank() >= 0) {
+	if (getHighestFrsRank() >= 0) {
 		FrsManager* frsManager = zoneServer->getFrsManager();
 
 		if (frsManager != nullptr) {
@@ -3749,12 +3750,16 @@ void PlayerObjectImplementation::recalculateForcePower() {
 
 	int forcePowerMod = 0, forceControlMod = 0;
 
+	// NON-STOCK: a member of both councils gets both sides' force pool bonuses.
+	// Stock used else-if, so only one side ever counted.
 	if (player->hasSkill("force_rank_light_novice")) {
-		forcePowerMod = player->getSkillMod("force_power_light");
-		forceControlMod = player->getSkillMod("force_control_light");
-	} else if (player->hasSkill("force_rank_dark_novice")) {
-		forcePowerMod = player->getSkillMod("force_power_dark");
-		forceControlMod = player->getSkillMod("force_control_dark");
+		forcePowerMod += player->getSkillMod("force_power_light");
+		forceControlMod += player->getSkillMod("force_control_light");
+	}
+
+	if (player->hasSkill("force_rank_dark_novice")) {
+		forcePowerMod += player->getSkillMod("force_power_dark");
+		forceControlMod += player->getSkillMod("force_control_dark");
 	}
 
 	maxForce += (forcePowerMod + forceControlMod) * 10;
@@ -3862,4 +3867,55 @@ void PlayerObjectImplementation::createHelperDroid() {
 
 	Reference<Task*> createDroid = new SpawnHelperDroidTask(player);
 	createDroid->schedule(5000);
+}
+
+// NON-STOCK: dual Force Ranking System membership. See secondaryFrsData in
+// PlayerObject.idl. A council is identified by the councilType stored in a slot,
+// never by which slot it happens to be in.
+FrsData* PlayerObjectImplementation::getFrsDataForCouncil(int councilType) {
+	if (councilType <= 0)
+		return nullptr;
+
+	if (frsData.getCouncilType() == councilType)
+		return &frsData;
+
+	if (secondaryFrsData.getCouncilType() == councilType)
+		return &secondaryFrsData;
+
+	return nullptr;
+}
+
+FrsData* PlayerObjectImplementation::getFreeFrsData() {
+	if (frsData.getCouncilType() == 0)
+		return &frsData;
+
+	if (secondaryFrsData.getCouncilType() == 0)
+		return &secondaryFrsData;
+
+	return nullptr;
+}
+
+int PlayerObjectImplementation::getFrsRankForCouncil(int councilType) {
+	FrsData* data = getFrsDataForCouncil(councilType);
+
+	if (data == nullptr)
+		return -1;
+
+	return data->getRank();
+}
+
+bool PlayerObjectImplementation::isDualFrsMember() {
+	return frsData.getCouncilType() > 0 && secondaryFrsData.getCouncilType() > 0;
+}
+
+int PlayerObjectImplementation::getHighestFrsRank() {
+	int highest = -1;
+
+	if (frsData.getCouncilType() > 0)
+		highest = frsData.getRank();
+
+	if (secondaryFrsData.getCouncilType() > 0 && secondaryFrsData.getRank() > highest)
+		highest = secondaryFrsData.getRank();
+
+	return highest;
 }

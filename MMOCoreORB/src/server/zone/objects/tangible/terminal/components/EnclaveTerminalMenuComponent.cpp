@@ -40,15 +40,15 @@ void EnclaveTerminalMenuComponent::fillObjectMenuResponse(SceneObject* sceneObje
 	if (ghost == nullptr)
 		return;
 
-	FrsData* frsData = ghost->getFrsData();
-	int playerRank = frsData->getRank();
+	// NON-STOCK: rank and membership in the council that owns this enclave.
+	int playerRank = ghost->getFrsRankForCouncil(enclaveType);
 
 	if (playerRank < 0 && !ghost->isPrivileged()) {
 		player->sendSystemMessage("@force_rank:insufficient_rank_vote"); // You have insufficient rank in order to vote.
 		return;
 	}
 
-	if (frsData->getCouncilType() == 0 && !ghost->isPrivileged())
+	if (ghost->getFrsDataForCouncil(enclaveType) == nullptr && !ghost->isPrivileged())
 		return;
 
 	if (frsManager->isPlayerFightingInArena(player->getObjectID()))
@@ -133,15 +133,15 @@ int EnclaveTerminalMenuComponent::handleObjectMenuSelect(SceneObject* sceneObjec
 	if (ghost == nullptr)
 		return 1;
 
-	FrsData* frsData = ghost->getFrsData();
-	int playerRank = frsData->getRank();
+	// NON-STOCK: rank and membership in the council that owns this enclave.
+	int playerRank = ghost->getFrsRankForCouncil(enclaveType);
 
 	if (playerRank < 0 && !ghost->isPrivileged()) {
 		player->sendSystemMessage("@force_rank:insufficient_rank_vote"); // You have insufficient rank in order to vote.
 		return 1;
 	}
 
-	if (frsData->getCouncilType() == 0 && !ghost->isPrivileged())
+	if (ghost->getFrsDataForCouncil(enclaveType) == nullptr && !ghost->isPrivileged())
 		return 1;
 
 	if (frsManager->isPlayerFightingInArena(player->getObjectID()))
@@ -163,7 +163,7 @@ int EnclaveTerminalMenuComponent::handleObjectMenuSelect(SceneObject* sceneObjec
 			frsManager->sendVoteSUI(player, sceneObject, FrsManager::SUI_FORCE_PHASE_CHANGE, enclaveType);
 #endif
 		else if (selectedID == 74)
-			frsManager->recoverJediItems(player);
+			frsManager->recoverJediItems(player, enclaveType);
 	} else if (terminalType == LIGHT_CHALLENGE) {
 		if (selectedID == 69)
 			frsManager->sendChallengeVoteSUI(player, sceneObject, FrsManager::SUI_CHAL_VOTE_STATUS, enclaveType);

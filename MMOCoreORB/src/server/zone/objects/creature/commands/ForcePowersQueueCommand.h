@@ -89,26 +89,20 @@ public:
 
 		Locker locker(creature);
 
-		FrsData* playerData = ghost->getFrsData();
-		int councilType = playerData->getCouncilType();
+		// NON-STOCK: sum the modifier of every council the character belongs to.
+		bool light = ghost->getFrsDataForCouncil(FrsManager::COUNCIL_LIGHT) != nullptr;
+		bool dark = ghost->getFrsDataForCouncil(FrsManager::COUNCIL_DARK) != nullptr;
+		int lightManipulation = light ? creature->getSkillMod("force_manipulation_light") : 0;
+		int darkManipulation = dark ? creature->getSkillMod("force_manipulation_dark") : 0;
 
 		locker.release();
 
-		int manipulationMod = 0;
-		float frsModifier = 0;
+		float adjustment = lightManipulation * frsLightForceCostModifier + darkManipulation * frsDarkForceCostModifier;
 
-		if (councilType == FrsManager::COUNCIL_LIGHT) {
-			manipulationMod = creature->getSkillMod("force_manipulation_light");
-			frsModifier = frsLightForceCostModifier;
-		} else if (councilType == FrsManager::COUNCIL_DARK) {
-			manipulationMod = creature->getSkillMod("force_manipulation_dark");
-			frsModifier = frsDarkForceCostModifier;
-		}
-
-		if (manipulationMod == 0 || frsModifier == 0)
+		if (adjustment == 0)
 			return forceCost;
 
-		return forceCost + (int)((manipulationMod * frsModifier) + .5);
+		return forceCost + (int)(adjustment + .5);
 	}
 
 	float getCommandDuration(CreatureObject *object, const UnicodeString& arguments) const {

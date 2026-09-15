@@ -1373,28 +1373,34 @@ void CombatManager::getFrsModifiedForceAttackDamage(CreatureObject* attacker, fl
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
-	int councilType = playerData->getCouncilType();
+	// NON-STOCK: a member of both councils gets both sides' damage bonuses, each
+	// computed exactly as stock did for its own council and then added together.
+	if (ghost->getFrsDataForCouncil(FrsManager::COUNCIL_LIGHT) != nullptr) {
+		int powerModifier = attacker->getSkillMod("force_power_light");
+		float minMod = data.getFrsLightMinDamageModifier();
+		float maxMod = data.getFrsLightMaxDamageModifier();
 
-	float minMod = 0, maxMod = 0;
-	int powerModifier = 0;
+		if (powerModifier > 0) {
+			if (minMod > 0)
+				minDmg += (int)((powerModifier * minMod) + 0.5);
 
-	if (councilType == FrsManager::COUNCIL_LIGHT) {
-		powerModifier = attacker->getSkillMod("force_power_light");
-		minMod = data.getFrsLightMinDamageModifier();
-		maxMod = data.getFrsLightMaxDamageModifier();
-	} else if (councilType == FrsManager::COUNCIL_DARK) {
-		powerModifier = attacker->getSkillMod("force_power_dark");
-		minMod = data.getFrsDarkMinDamageModifier();
-		maxMod = data.getFrsDarkMaxDamageModifier();
+			if (maxMod > 0)
+				maxDmg += (int)((powerModifier * maxMod) + 0.5);
+		}
 	}
 
-	if (powerModifier > 0) {
-		if (minMod > 0)
-			minDmg += (int)((powerModifier * minMod) + 0.5);
+	if (ghost->getFrsDataForCouncil(FrsManager::COUNCIL_DARK) != nullptr) {
+		int powerModifier = attacker->getSkillMod("force_power_dark");
+		float minMod = data.getFrsDarkMinDamageModifier();
+		float maxMod = data.getFrsDarkMaxDamageModifier();
 
-		if (maxMod > 0)
-			maxDmg += (int)((powerModifier * maxMod) + 0.5);
+		if (powerModifier > 0) {
+			if (minMod > 0)
+				minDmg += (int)((powerModifier * minMod) + 0.5);
+
+			if (maxMod > 0)
+				maxDmg += (int)((powerModifier * maxMod) + 0.5);
+		}
 	}
 }
 

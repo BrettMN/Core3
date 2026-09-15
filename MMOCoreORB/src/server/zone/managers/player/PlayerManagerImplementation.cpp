@@ -1255,11 +1255,10 @@ int PlayerManagerImplementation::notifyDestruction(TangibleObject* destructor, T
 			PlayerObject* victimGhost = playerCreature->getPlayerObject();
 
 			if (attackerGhost != nullptr && victimGhost != nullptr) {
-				FrsData* attackerData = attackerGhost->getFrsData();
-				int attackerCouncil = attackerData->getCouncilType();
-
-				FrsData* victimData = victimGhost->getFrsData();
-				int victimCouncil = victimData->getCouncilType();
+				// NON-STOCK: these checks only care whether both are Dark council
+				// members, which holds for a member of both councils too.
+				int attackerCouncil = attackerGhost->getFrsDataForCouncil(FrsManager::COUNCIL_DARK) != nullptr ? FrsManager::COUNCIL_DARK : attackerGhost->getFrsData()->getCouncilType();
+				int victimCouncil = victimGhost->getFrsDataForCouncil(FrsManager::COUNCIL_DARK) != nullptr ? FrsManager::COUNCIL_DARK : victimGhost->getFrsData()->getCouncilType();
 
 				ManagedReference<FrsManager*> strongMan = playerCreature->getZoneServer()->getFrsManager();
 				ManagedReference<CreatureObject*> strongRef = playerCreature->asCreatureObject();
@@ -1416,11 +1415,10 @@ void PlayerManagerImplementation::killPlayer(TangibleObject* attacker, CreatureO
 			PlayerObject* victimGhost = player->getPlayerObject();
 
 			if (attackerGhost != nullptr && victimGhost != nullptr) {
-				FrsData* attackerData = attackerGhost->getFrsData();
-				int attackerCouncil = attackerData->getCouncilType();
-
-				FrsData* victimData = victimGhost->getFrsData();
-				int victimCouncil = victimData->getCouncilType();
+				// NON-STOCK: these checks only care whether both are Dark council
+				// members, which holds for a member of both councils too.
+				int attackerCouncil = attackerGhost->getFrsDataForCouncil(FrsManager::COUNCIL_DARK) != nullptr ? FrsManager::COUNCIL_DARK : attackerGhost->getFrsData()->getCouncilType();
+				int victimCouncil = victimGhost->getFrsDataForCouncil(FrsManager::COUNCIL_DARK) != nullptr ? FrsManager::COUNCIL_DARK : victimGhost->getFrsData()->getCouncilType();
 
 				if (attackerCouncil == FrsManager::COUNCIL_DARK && victimCouncil == FrsManager::COUNCIL_DARK) {
 					ManagedReference<FrsManager*> strongMan = player->getZoneServer()->getFrsManager();
@@ -7139,8 +7137,25 @@ void PlayerManagerImplementation::unlockFRSForTesting(CreatureObject* player, in
 	if (ghost == nullptr)
 		return;
 
-	if (player->hasSkill("force_rank_light_novice") || player->hasSkill("force_rank_dark_novice")) {
-		player->sendSystemMessage("You already have FRS skills. You must drop them before using this feature again.");
+	bool hasLight = player->hasSkill("force_rank_light_novice");
+	bool hasDark = player->hasSkill("force_rank_dark_novice");
+
+	if ((councilType == FrsManager::COUNCIL_LIGHT && hasLight) || (councilType == FrsManager::COUNCIL_DARK && hasDark)) {
+		player->sendSystemMessage("You are already a member of that council.");
+		return;
+	}
+
+	// NON-STOCK: a member of one council joins the other as well, keeping every
+	// skill and the existing membership, instead of being refused. The full reset
+	// below only runs for a character in no council yet.
+	if (hasLight || hasDark) {
+		Lua* lua = DirectorManager::instance()->getLuaInstance();
+
+		Reference<LuaFunction*> luaJoin = lua->createFunction("JediTrials", "joinAdditionalCouncil", 0);
+		*luaJoin << player;
+		*luaJoin << councilType;
+
+		luaJoin->callFunction();
 		return;
 	}
 

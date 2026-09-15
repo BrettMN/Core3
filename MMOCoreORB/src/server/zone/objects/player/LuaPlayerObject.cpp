@@ -813,10 +813,20 @@ int LuaPlayerObject::getVisibility(lua_State* L) {
 	return 1;
 }
 
+// NON-STOCK: joins a council using a free FRS slot, so a member of one council
+// can also join the other. Joining a council already held does nothing.
 int LuaPlayerObject::setFrsCouncil(lua_State* L) {
 	int councilType = lua_tointeger(L, -1);
 
-	FrsData* frsData = realObject->getFrsData();
+	if (realObject->getFrsDataForCouncil(councilType) != nullptr)
+		return 0;
+
+	FrsData* frsData = realObject->getFreeFrsData();
+
+	if (frsData == nullptr) {
+		realObject->error() << "LuaPlayerObject::setFrsCouncil: no free FRS slot for council " << councilType;
+		return 0;
+	}
 
 	frsData->setCouncilType(councilType);
 
@@ -832,8 +842,20 @@ int LuaPlayerObject::setVisibility(lua_State* L) {
 }
 
 
+// NON-STOCK: setFrsRank(rank [, councilType]). Without a council the character's
+// first council is used, which matches stock behaviour for single-council members.
 int LuaPlayerObject::setFrsRank(lua_State* L) {
-	int rank = lua_tointeger(L, -1);
+	int argc = lua_gettop(L) - 1;
+	int rank = 0;
+	int councilType = 0;
+
+	if (argc >= 2) {
+		rank = lua_tointeger(L, -2);
+		councilType = lua_tointeger(L, -1);
+	} else {
+		rank = lua_tointeger(L, -1);
+		councilType = realObject->getFrsData()->getCouncilType();
+	}
 
 	FrsManager* frsManager = realObject->getZoneServer()->getFrsManager();
 
@@ -842,16 +864,22 @@ int LuaPlayerObject::setFrsRank(lua_State* L) {
 	if (frsManager != nullptr && player != nullptr) {
 		Locker locker(player);
 
-		frsManager->setPlayerRank(player, rank);
+		frsManager->setPlayerRank(player, councilType, rank);
 	}
 
 	return 0;
 }
 
+// NON-STOCK: getFrsRank([councilType]). Without a council, the rank in the
+// character's first council, as stock.
 int LuaPlayerObject::getFrsRank(lua_State* L) {
-	FrsData* frsData = realObject->getFrsData();
+	int argc = lua_gettop(L) - 1;
 
-	lua_pushinteger(L, frsData->getRank());
+	if (argc >= 1) {
+		lua_pushinteger(L, realObject->getFrsRankForCouncil(lua_tointeger(L, -1)));
+	} else {
+		lua_pushinteger(L, realObject->getFrsData()->getRank());
+	}
 
 	return 1;
 }

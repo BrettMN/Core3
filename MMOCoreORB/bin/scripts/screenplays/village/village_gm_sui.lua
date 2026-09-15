@@ -833,6 +833,10 @@ function VillageGmSui.frsManagement(pPlayer, targetID)
 
 	promptBuf = promptBuf .. " \\#pcontrast1 " .. "Rank:" .. " \\#pcontrast2 " .. councilRank .. "\n"
 
+	-- NON-STOCK: a character may belong to both councils; show both ranks.
+	promptBuf = promptBuf .. " \\#pcontrast1 " .. "Light Rank:" .. " \\#pcontrast2 " .. PlayerObject(pGhost):getFrsRank(JediTrials.COUNCIL_LIGHT) .. "\n"
+	promptBuf = promptBuf .. " \\#pcontrast1 " .. "Dark Rank:" .. " \\#pcontrast2 " .. PlayerObject(pGhost):getFrsRank(JediTrials.COUNCIL_DARK) .. " (-1 = not a member)\n"
+
 	sui.setPrompt(promptBuf)
 
 	sui.add("Set FRS Rank", "setFrsRank" .. targetID)

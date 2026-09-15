@@ -338,7 +338,7 @@ void FrsManagerImplementation::setupEnclaveRooms(BuildingObject* enclaveBuilding
 	}
 }
 
-void FrsManagerImplementation::verifyRoomAccess(CreatureObject* player, int playerRank) {
+void FrsManagerImplementation::verifyRoomAccess(CreatureObject* player) {
 	if (player == nullptr)
 		return;
 
@@ -363,6 +363,14 @@ void FrsManagerImplementation::verifyRoomAccess(CreatureObject* player, int play
 		buildingType = COUNCIL_DARK;
 	else
 		return;
+
+	PlayerObject* ghost = player->getPlayerObject();
+
+	if (ghost == nullptr)
+		return;
+
+	// NON-STOCK: access to an enclave depends on rank in the council that owns it.
+	int playerRank = ghost->getFrsRankForCouncil(buildingType);
 
 	int roomReq = getRoomRequirement(cellID);
 
@@ -437,61 +445,70 @@ void FrsManagerImplementation::validatePlayerData(CreatureObject* player, bool v
 		return;
 
 	if (verifyBan && isBanned(player)) {
-		removeFromFrs(player);
-		verifyRoomAccess(player, -1);
+		removeFromAllFrs(player);
+		verifyRoomAccess(player);
 		ghost->recalculateForcePower();
 		return;
 	}
 
-	FrsData* playerData = ghost->getFrsData();
-	int councilType = playerData->getCouncilType();
-	int curPlayerRank = playerData->getRank();
-
-	if (curPlayerRank == -1)
-		return;
-
-	int realPlayerRank = 0;
-
-	if (curPlayerRank == 0 && !player->hasSkill("force_rank_light_novice") && !player->hasSkill("force_rank_dark_novice"))
-		realPlayerRank = -1;
-
+	// NON-STOCK: a character may belong to both councils, each with its own rank,
+	// so each membership is validated on its own.
+	const short councils[] = { COUNCIL_LIGHT, COUNCIL_DARK };
 	uint64 playerID = player->getObjectID();
 
-	for (int i = 1; i <= 11; i++) {
-		ManagedReference<FrsRank*> rankData = getFrsRank(councilType, i);
+	for (int c = 0; c < 2; ++c) {
+		short councilType = councils[c];
+		FrsData* playerData = ghost->getFrsDataForCouncil(councilType);
 
-		if (rankData == nullptr)
+		if (playerData == nullptr)
 			continue;
 
-		Locker clocker(rankData, player);
+		int curPlayerRank = playerData->getRank();
 
-		if (rankData->isOnPlayerList(playerID)) {
-			realPlayerRank = rankData->getRank();
-			break;
+		if (curPlayerRank == -1)
+			continue;
+
+		String noviceSkill = (councilType == COUNCIL_LIGHT) ? "force_rank_light_novice" : "force_rank_dark_novice";
+		int realPlayerRank = 0;
+
+		for (int i = 1; i <= 11; i++) {
+			ManagedReference<FrsRank*> rankData = getFrsRank(councilType, i);
+
+			if (rankData == nullptr)
+				continue;
+
+			Locker clocker(rankData, player);
+
+			if (rankData->isOnPlayerList(playerID)) {
+				realPlayerRank = rankData->getRank();
+				break;
+			}
 		}
-	}
 
-	if ((councilType == COUNCIL_LIGHT && !player->hasSkill("force_rank_light_novice")) || (councilType == COUNCIL_DARK && !player->hasSkill("force_rank_dark_novice")))
-		realPlayerRank = -1;
+		if (!player->hasSkill(noviceSkill))
+			realPlayerRank = -1;
 
-	if (realPlayerRank != curPlayerRank) {
-		if (realPlayerRank == -1 && (councilType == COUNCIL_LIGHT || councilType == COUNCIL_DARK)) {
-			removeFromFrs(player);
-		} else {
-			setPlayerRank(player, realPlayerRank);
+		if (realPlayerRank != curPlayerRank) {
+			if (realPlayerRank == -1) {
+				removeFromFrs(player, councilType);
+				continue;
+			}
+
+			setPlayerRank(player, councilType, realPlayerRank);
 		}
-	}
 
-	verifyRoomAccess(player, realPlayerRank);
+		// NON-STOCK: a council forces its faction (Light: Rebel, Dark: Imperial) and
+		// overt status. Those contradict each other for a member of both councils,
+		// so faction and status are left to the player in that case.
+		if (!ghost->isDualFrsMember()) {
+			if (councilType == COUNCIL_LIGHT && player->getFaction() != Factions::FACTIONREBEL)
+				player->setFaction(Factions::FACTIONREBEL);
+			else if (councilType == COUNCIL_DARK && player->getFaction() != Factions::FACTIONIMPERIAL)
+				player->setFaction(Factions::FACTIONIMPERIAL);
 
-	if (realPlayerRank >= 0 && (councilType == COUNCIL_LIGHT || councilType == COUNCIL_DARK)) {
-		if (councilType == COUNCIL_LIGHT && player->getFaction() != Factions::FACTIONREBEL)
-			player->setFaction(Factions::FACTIONREBEL);
-		else if (councilType == COUNCIL_DARK && player->getFaction() != Factions::FACTIONIMPERIAL)
-			player->setFaction(Factions::FACTIONIMPERIAL);
-
-		if (player->getFactionStatus() != FactionStatus::OVERT)
-			player->setFactionStatus(FactionStatus::OVERT);
+			if (player->getFactionStatus() != FactionStatus::OVERT)
+				player->setFactionStatus(FactionStatus::OVERT);
+		}
 
 		if (realPlayerRank >= 4 && !player->hasSkill("force_title_jedi_rank_04"))
 			player->addSkill("force_title_jedi_rank_04", true);
@@ -504,32 +521,28 @@ void FrsManagerImplementation::validatePlayerData(CreatureObject* player, bool v
 			SkillManager* skillManager = zoneServer->getSkillManager();
 
 			if (skillManager == nullptr)
-				return;
+				continue;
 
-			if (councilType == COUNCIL_LIGHT && player->getSkillMod("force_control_light") == 0) {
-				player->removeSkill("force_rank_light_novice", true);
-				skillManager->awardSkill("force_rank_light_novice", player, true, false, true);
-			} else if (councilType == COUNCIL_DARK && player->getSkillMod("force_control_dark") == 0) {
-				player->removeSkill("force_rank_dark_novice", true);
-				skillManager->awardSkill("force_rank_dark_novice", player, true, false, true);
+			String controlMod = (councilType == COUNCIL_LIGHT) ? "force_control_light" : "force_control_dark";
+
+			if (player->getSkillMod(controlMod) == 0) {
+				player->removeSkill(noviceSkill, true);
+				skillManager->awardSkill(noviceSkill, player, true, false, true);
 			}
 		} else {
-			String groupName = "";
-
-			if (councilType == COUNCIL_LIGHT)
-				groupName = "LightEnclaveRank" + String::valueOf(realPlayerRank);
-			else if (councilType == COUNCIL_DARK)
-				groupName = "DarkEnclaveRank" + String::valueOf(realPlayerRank);
+			String groupName = ((councilType == COUNCIL_LIGHT) ? "LightEnclaveRank" : "DarkEnclaveRank") + String::valueOf(realPlayerRank);
 
 			if (!ghost->hasPermissionGroup(groupName))
 				ghost->addPermissionGroup(groupName, true);
 		}
 	}
 
+	verifyRoomAccess(player);
+
 	ghost->recalculateForcePower();
 }
 
-void FrsManagerImplementation::setPlayerRank(CreatureObject* player, int rank) {
+void FrsManagerImplementation::setPlayerRank(CreatureObject* player, int councilType, int rank) {
 	if (player == nullptr)
 		return;
 
@@ -540,9 +553,14 @@ void FrsManagerImplementation::setPlayerRank(CreatureObject* player, int rank) {
 
 	uint64 playerID = player->getObjectID();
 
-	FrsData* playerData = ghost->getFrsData();
+	// NON-STOCK: rank is per council.
+	FrsData* playerData = ghost->getFrsDataForCouncil(councilType);
 
-	int councilType = playerData->getCouncilType();
+	if (playerData == nullptr) {
+		error() << "setPlayerRank: " << player->getFirstName() << " ID: " << playerID << " is not a member of council " << councilType;
+		return;
+	}
+
 	String groupName = "";
 
 	if (councilType == COUNCIL_LIGHT)
@@ -553,7 +571,7 @@ void FrsManagerImplementation::setPlayerRank(CreatureObject* player, int rank) {
 	int curRank = playerData->getRank();
 	int curExperience = ghost->getExperience("force_rank_xp");
 
-	log(true) << "setPlayerRank for " << player->getFirstName() << " ID: " << player->getObjectID() << " Current FRS Rank = " << curRank << " New FRS Rank = " << rank << " Current FRS XP = " << curExperience;
+	log(true) << "setPlayerRank for " << player->getFirstName() << " ID: " << player->getObjectID() << " Council = " << councilType << " Current FRS Rank = " << curRank << " New FRS Rank = " << rank << " Current FRS XP = " << curExperience;
 
 	if (isFrsEnabled() && curRank > 0 && (councilType == COUNCIL_LIGHT || councilType == COUNCIL_DARK)) {
 		ghost->removePermissionGroup(groupName + String::valueOf(curRank), true);
@@ -612,11 +630,11 @@ void FrsManagerImplementation::setPlayerRank(CreatureObject* player, int rank) {
 			}
 		}
 
-		updatePlayerSkills(player);
+		updatePlayerSkills(player, councilType);
 	}
 }
 
-void FrsManagerImplementation::removeFromFrs(CreatureObject* player) {
+void FrsManagerImplementation::removeFromFrs(CreatureObject* player, int councilType) {
 	if (player == nullptr)
 		return;
 
@@ -627,10 +645,13 @@ void FrsManagerImplementation::removeFromFrs(CreatureObject* player) {
 
 	uint64 playerID = player->getObjectID();
 
-	FrsData* playerData = ghost->getFrsData();
-	int curRank = playerData->getRank();
+	// NON-STOCK: removes membership of one council, leaving any other intact.
+	FrsData* playerData = ghost->getFrsDataForCouncil(councilType);
 
-	int councilType = playerData->getCouncilType();
+	if (playerData == nullptr)
+		return;
+
+	int curRank = playerData->getRank();
 	String groupName = "";
 
 	if (councilType == COUNCIL_LIGHT) {
@@ -674,7 +695,7 @@ void FrsManagerImplementation::removeFromFrs(CreatureObject* player) {
 	managerData->removeChallengeTime(playerID);
 	clocker.release();
 
-	updatePlayerSkills(player);
+	updatePlayerSkills(player, councilType);
 	playerData->setCouncilType(0);
 
 	StringIdChatParameter param("@force_rank:council_left"); // You have left the %TO.
@@ -688,53 +709,73 @@ void FrsManagerImplementation::removeFromFrs(CreatureObject* player) {
 	player->sendSystemMessage(param);
 }
 
+void FrsManagerImplementation::removeFromAllFrs(CreatureObject* player) {
+	if (player == nullptr)
+		return;
+
+	removeFromFrs(player, COUNCIL_LIGHT);
+	removeFromFrs(player, COUNCIL_DARK);
+}
+
 void FrsManagerImplementation::handleSkillRevoked(CreatureObject* player, const String& skillName) {
 	PlayerObject* ghost = player->getPlayerObject();
 
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
-	int playerRank = playerData->getRank();
-	int councilType = playerData->getCouncilType();
-
-	if (playerRank < 0 || councilType == 0)
-		return;
+	const short councils[] = { COUNCIL_LIGHT, COUNCIL_DARK };
 
 	if (skillName.hashCode() == STRING_HASHCODE("force_title_jedi_rank_03")) {
-		VectorMap<uint32, Reference<FrsRankingData*> > rankingData;
-
-		if (councilType == COUNCIL_LIGHT)
-			rankingData = lightRankingData;
-		else if (councilType == COUNCIL_DARK)
-			rankingData = darkRankingData;
-
+		// NON-STOCK: losing Knight strips the rank skills of every council held.
 		auto zoneServer = this->zoneServer.get();
 		SkillManager* skillManager = zoneServer->getSkillManager();
 
-		for (int i = rankingData.size() -1; i >= 0; i--) {
-			Reference<FrsRankingData*> rankData = rankingData.get(i);
-			String rankSkill = rankData->getSkillName();
+		for (int c = 0; c < 2; ++c) {
+			short councilType = councils[c];
 
-			if (player->hasSkill(rankSkill)) {
-				skillManager->surrenderSkill(rankSkill, player, true, false);
+			if (ghost->getFrsRankForCouncil(councilType) < 0)
+				continue;
+
+			VectorMap<uint32, Reference<FrsRankingData*> > rankingData;
+
+			if (councilType == COUNCIL_LIGHT)
+				rankingData = lightRankingData;
+			else
+				rankingData = darkRankingData;
+
+			for (int i = rankingData.size() -1; i >= 0; i--) {
+				Reference<FrsRankingData*> rankData = rankingData.get(i);
+				String rankSkill = rankData->getSkillName();
+
+				if (player->hasSkill(rankSkill)) {
+					skillManager->surrenderSkill(rankSkill, player, true, false);
+				}
 			}
 		}
 
 		return;
 	}
 
-	int skillRank = getSkillRank(skillName, councilType);
+	// NON-STOCK: a rank skill belongs to exactly one council's ladder; act on that one.
+	for (int c = 0; c < 2; ++c) {
+		short councilType = councils[c];
 
-	if (skillRank < 0) {
+		if (ghost->getFrsRankForCouncil(councilType) < 0)
+			continue;
+
+		int skillRank = getSkillRank(skillName, councilType);
+
+		if (skillRank < 0) {
+			continue;
+		} else if (skillRank > 0) {
+			setPlayerRank(player, councilType, skillRank - 1);
+		} else if (skillRank == 0) {
+			removeFromFrs(player, councilType);
+		}
+
+		verifyRoomAccess(player);
 		return;
-	} else if (skillRank > 0) {
-		setPlayerRank(player, skillRank - 1);
-	} else if (skillRank == 0) {
-		removeFromFrs(player);
 	}
-
-	verifyRoomAccess(player, skillRank - 1);
 }
 
 int FrsManagerImplementation::getSkillRank(const String& skillName, int councilType) {
@@ -758,15 +799,20 @@ int FrsManagerImplementation::getSkillRank(const String& skillName, int councilT
 	return -1;
 }
 
-void FrsManagerImplementation::updatePlayerSkills(CreatureObject* player) {
+void FrsManagerImplementation::updatePlayerSkills(CreatureObject* player, int councilType) {
 	PlayerObject* ghost = player->getPlayerObject();
 
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
+	// NON-STOCK: syncs the rank skills of one council's ladder. After removeFromFrs
+	// sets the rank to -1 this surrenders all of that council's rank skills.
+	FrsData* playerData = ghost->getFrsDataForCouncil(councilType);
+
+	if (playerData == nullptr)
+		return;
+
 	int playerRank = playerData->getRank();
-	int councilType = playerData->getCouncilType();
 	VectorMap<uint32, Reference<FrsRankingData*> > rankingData;
 
 	if (councilType == COUNCIL_LIGHT)
@@ -802,7 +848,7 @@ void FrsManagerImplementation::updatePlayerSkills(CreatureObject* player) {
 	}
 }
 
-void FrsManagerImplementation::promotePlayer(CreatureObject* player) {
+void FrsManagerImplementation::promotePlayer(CreatureObject* player, int councilType) {
 	if (player == nullptr)
 		return;
 
@@ -811,10 +857,9 @@ void FrsManagerImplementation::promotePlayer(CreatureObject* player) {
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
-	int rank = playerData->getRank();
+	int rank = ghost->getFrsRankForCouncil(councilType);
 
-	if (rank > 10)
+	if (rank < 0 || rank > 10)
 		return;
 
 	int newRank = rank + 1;
@@ -822,10 +867,10 @@ void FrsManagerImplementation::promotePlayer(CreatureObject* player) {
 	ManagedReference<FrsManager*> strongMan = _this.getReferenceUnsafeStaticCast();
 	ManagedReference<CreatureObject*> strongRef = player->asCreatureObject();
 
-	Core::getTaskManager()->executeTask([strongMan, strongRef, newRank] () {
+	Core::getTaskManager()->executeTask([strongMan, strongRef, councilType, newRank] () {
 		Locker locker(strongRef);
-		strongMan->setPlayerRank(strongRef, newRank);
-		strongMan->recoverJediItems(strongRef);
+		strongMan->setPlayerRank(strongRef, councilType, newRank);
+		strongMan->recoverJediItems(strongRef, councilType);
 	}, "SetPlayerRankTask");
 
 	String stfRank = "@force_rank:rank" + String::valueOf(newRank);
@@ -836,7 +881,7 @@ void FrsManagerImplementation::promotePlayer(CreatureObject* player) {
 	player->sendSystemMessage(param);
 }
 
-void FrsManagerImplementation::demotePlayer(CreatureObject* player) {
+void FrsManagerImplementation::demotePlayer(CreatureObject* player, int councilType) {
 	if (player == nullptr)
 		return;
 
@@ -845,19 +890,18 @@ void FrsManagerImplementation::demotePlayer(CreatureObject* player) {
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
-	int rank = playerData->getRank();
+	int rank = ghost->getFrsRankForCouncil(councilType);
 
-	if (rank == 0)
+	if (rank <= 0)
 		return;
 
 	int newRank = rank - 1;
 	ManagedReference<FrsManager*> strongMan = _this.getReferenceUnsafeStaticCast();
 	ManagedReference<CreatureObject*> strongRef = player->asCreatureObject();
 
-	Core::getTaskManager()->executeTask([strongMan, strongRef, newRank] () {
+	Core::getTaskManager()->executeTask([strongMan, strongRef, councilType, newRank] () {
 		Locker locker(strongRef);
-		strongMan->setPlayerRank(strongRef, newRank);
+		strongMan->setPlayerRank(strongRef, councilType, newRank);
 	}, "SetPlayerRankTask");
 }
 
@@ -892,10 +936,6 @@ void FrsManagerImplementation::adjustFrsExperience(CreatureObject* player, int a
 			player->sendSystemMessage(param);
 		}
 	} else {
-		FrsData* playerData = ghost->getFrsData();
-		int rank = playerData->getRank();
-		int councilType = playerData->getCouncilType();
-
 		int curExperience = ghost->getExperience("force_rank_xp");
 
 		// Ensure we dont go into the negatives
@@ -913,24 +953,36 @@ void FrsManagerImplementation::adjustFrsExperience(CreatureObject* player, int a
 
 		curExperience += amount;
 
-		Reference<FrsRankingData*> rankingData = nullptr;
+		// NON-STOCK: both councils draw on the same force_rank_xp pool, so an
+		// experience loss is checked against each council's rank separately.
+		const short councils[] = { COUNCIL_LIGHT, COUNCIL_DARK };
 
-		if (councilType == COUNCIL_LIGHT)
-			rankingData = lightRankingData.get(rank);
-		else if (councilType == COUNCIL_DARK)
-			rankingData = darkRankingData.get(rank);
+		for (int c = 0; c < 2; ++c) {
+			short councilType = councils[c];
+			int rank = ghost->getFrsRankForCouncil(councilType);
 
-		if (rankingData == nullptr)
-			return;
+			if (rank < 0)
+				continue;
 
-		int reqXp = rankingData->getRequiredExperience();
+			Reference<FrsRankingData*> rankingData = nullptr;
 
-		if (reqXp > curExperience) {
-			auto zoneServer = this->zoneServer.get();
-			ChatManager* chatManager = zoneServer->getChatManager();
+			if (councilType == COUNCIL_LIGHT)
+				rankingData = lightRankingData.get(rank);
+			else
+				rankingData = darkRankingData.get(rank);
 
-			chatManager->sendMail("Enclave Records", "@force_rank:demote_xp_debt_sub", "@force_rank:demote_xp_debt_body", player->getFirstName());
-			demotePlayer(player);
+			if (rankingData == nullptr)
+				continue;
+
+			int reqXp = rankingData->getRequiredExperience();
+
+			if (reqXp > curExperience) {
+				auto zoneServer = this->zoneServer.get();
+				ChatManager* chatManager = zoneServer->getChatManager();
+
+				chatManager->sendMail("Enclave Records", "@force_rank:demote_xp_debt_sub", "@force_rank:demote_xp_debt_body", player->getFirstName());
+				demotePlayer(player, councilType);
+			}
 		}
 	}
 }
@@ -993,8 +1045,9 @@ void FrsManagerImplementation::deductMaintenanceXp(CreatureObject* player) {
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
-	int rank = playerData->getRank();
+	// NON-STOCK: maintenance is owed for every ranked seat held, so a member of
+	// both councils pays for the sum of both ranks.
+	int rank = Math::max(0, ghost->getFrsRankForCouncil(COUNCIL_LIGHT)) + Math::max(0, ghost->getFrsRankForCouncil(COUNCIL_DARK));
 
 	if (rank == 0)
 		return;
@@ -1054,10 +1107,8 @@ void FrsManagerImplementation::deductDebtExperience(CreatureObject* player) {
 	if (ghost == nullptr)
 		return;
 
-	FrsData* frsData = ghost->getFrsData();
-	int rank = frsData->getRank();
-
-	if (rank > 0)
+	// NON-STOCK: debt applies if any council seat is ranked.
+	if (ghost->getHighestFrsRank() > 0)
 		adjustFrsExperience(player, curDebt * -1);
 
 	managerData->removeExperienceDebt(playerID);
@@ -1071,20 +1122,22 @@ bool FrsManagerImplementation::isValidFrsBattle(CreatureObject* attacker, Creatu
 	if (attackerGhost == nullptr || victimGhost == nullptr)
 		return false;
 
-	FrsData* attackerData = attackerGhost->getFrsData();
-	int attackerRank = attackerData->getRank();
-	int attackerCouncil = attackerData->getCouncilType();
-
-	FrsData* victimData = victimGhost->getFrsData();
-	int victimRank = victimData->getRank();
-	int victimCouncil = victimData->getCouncilType();
+	bool attackerLight = attackerGhost->getFrsDataForCouncil(COUNCIL_LIGHT) != nullptr;
+	bool attackerDark = attackerGhost->getFrsDataForCouncil(COUNCIL_DARK) != nullptr;
+	bool victimLight = victimGhost->getFrsDataForCouncil(COUNCIL_LIGHT) != nullptr;
+	bool victimDark = victimGhost->getFrsDataForCouncil(COUNCIL_DARK) != nullptr;
 
 	// Neither player is in the FRS
-	if (victimCouncil == 0 && attackerCouncil == 0)
+	if (!attackerLight && !attackerDark && !victimLight && !victimDark)
 		return false;
 
+	// NON-STOCK: a member of both councils is treated as an enemy of both, so any
+	// fight involving one earns credit.
+	if ((attackerLight && attackerDark) || (victimLight && victimDark))
+		return true;
+
 	// No credit if they are in the same council
-	if ((attackerCouncil == COUNCIL_LIGHT && victimCouncil == COUNCIL_LIGHT) || (attackerCouncil == COUNCIL_DARK && victimCouncil == COUNCIL_DARK))
+	if ((attackerLight && victimLight) || (attackerDark && victimDark))
 		return false;
 
 	return true;
@@ -1147,15 +1200,13 @@ int FrsManagerImplementation::getBaseExperienceGain(PlayerObject* playerGhost, P
 	if (opponent == nullptr)
 		return 0;
 
-	FrsData* playerData = playerGhost->getFrsData();
-	int playerRank = playerData->getRank();
-	int playerCouncil = playerData->getCouncilType();
-
-	FrsData* opponentData = opponentGhost->getFrsData();
-	int opponentRank = opponentData->getRank();
+	// NON-STOCK: PvP experience goes to the single shared force_rank_xp pool, so it
+	// is scaled by the highest rank held in any council.
+	int playerRank = playerGhost->getHighestFrsRank();
+	int opponentRank = opponentGhost->getHighestFrsRank();
 
 	// Make sure player is part of a council before we grab any value to award
-	if (playerCouncil == 0)
+	if (playerRank < 0)
 		return 0;
 
 	String key = "";
@@ -1222,8 +1273,8 @@ void FrsManagerImplementation::sendVoteSUI(CreatureObject* player, SceneObject* 
 	} else if (suiType == SUI_VOTE_RECORD) {
 		box->setPromptText("@force_rank:vote_record_select"); // Select the rank for which you wish to record your vote.
 		box->setPromptTitle("@force_rank:rank_selection"); // Rank Selection
-		FrsData* playerData = ghost->getFrsData();
-		int rank = playerData->getRank();
+		// NON-STOCK: rank in the council that owns this terminal.
+		int rank = ghost->getFrsRankForCouncil(enclaveType);
 
 		for (int i = 0; i < elementList.size(); i++) {
 			ManagedReference<FrsRank*> rankData = getFrsRank(enclaveType, i + 1);
@@ -1398,8 +1449,8 @@ void FrsManagerImplementation::sendVoteRecordSui(CreatureObject* player, SceneOb
 		return;
 	}
 
-	FrsData* playerData = ghost->getFrsData();
-	int playerRank = playerData->getRank();
+	// NON-STOCK: rank in the council that owns this terminal.
+	int playerRank = ghost->getFrsRankForCouncil(enclaveType);
 
 	int voteWeight = getVoteWeight(playerRank, rank);
 
@@ -1491,8 +1542,8 @@ void FrsManagerImplementation::handleVoteRecordSui(CreatureObject* player, Scene
 		return;
 	}
 
-	FrsData* playerData = ghost->getFrsData();
-	int playerRank = playerData->getRank();
+	// NON-STOCK: rank in the council that owns this terminal.
+	int playerRank = ghost->getFrsRankForCouncil(enclaveType);
 
 	int voteWeight = getVoteWeight(playerRank, rank);
 
@@ -1569,8 +1620,8 @@ void FrsManagerImplementation::handleVotePetitionSui(CreatureObject* player, Sce
 		return;
 	}
 
-	FrsData* playerData = ghost->getFrsData();
-	int playerRank = playerData->getRank();
+	// NON-STOCK: rank in the council that owns this terminal.
+	int playerRank = ghost->getFrsRankForCouncil(enclaveType);
 	uint64 playerID = player->getObjectID();
 
 	if (playerRank >= rank) {
@@ -1588,7 +1639,7 @@ void FrsManagerImplementation::handleVotePetitionSui(CreatureObject* player, Sce
 		return;
 	}
 
-	if (!isEligibleForPromotion(player, rank)) {
+	if (!isEligibleForPromotion(player, enclaveType, rank)) {
 		player->sendSystemMessage("@force_rank:petitioning_not_eligible"); // You are not eligible to petition for this rank.
 		return;
 	}
@@ -1642,21 +1693,21 @@ void FrsManagerImplementation::handleAcceptPromotionSui(CreatureObject* player, 
 		return;
 	}
 
-	FrsData* playerData = ghost->getFrsData();
-	int playerRank = playerData->getRank();
+	// NON-STOCK: rank in the council that owns this terminal.
+	int playerRank = ghost->getFrsRankForCouncil(enclaveType);
 
 	if (playerRank >= rank) {
 		player->sendSystemMessage("@force_rank:promotion_already_have_rank"); // You have already achieved this rank.
 		return;
 	}
 
-	if (!isEligibleForPromotion(player, rank)) {
+	if (!isEligibleForPromotion(player, enclaveType, rank)) {
 		player->sendSystemMessage("@force_rank:not_eligible_for_promotion"); // You are not eligible to accept the promotion. If you can meet the eligibility before the acceptance period expires, you can still receive the promotion.
 		return;
 	}
 
 	player->sendSystemMessage("@force_rank:promotion_accepted"); // You accept the promotion.
-	promotePlayer(player);
+	promotePlayer(player, enclaveType);
 	rankData->removeFromWinnerList(playerID);
 
 	SortedVector<uint64>* rankList = rankData->getPlayerList();
@@ -1688,14 +1739,17 @@ void FrsManagerImplementation::handleAcceptPromotionSui(CreatureObject* player, 
 	}
 }
 
-bool FrsManagerImplementation::isEligibleForPromotion(CreatureObject* player, int rank) {
+bool FrsManagerImplementation::isEligibleForPromotion(CreatureObject* player, int councilType, int rank) {
 	PlayerObject* ghost = player->getPlayerObject();
 
 	if (ghost == nullptr)
 		return false;
 
-	FrsData* playerData = ghost->getFrsData();
-	int councilType = playerData->getCouncilType();
+	// NON-STOCK: eligibility is checked against the named council's ladder, and
+	// only for a member of that council.
+	if (ghost->getFrsDataForCouncil(councilType) == nullptr)
+		return false;
+
 	VectorMap<uint32, Reference<FrsRankingData*> > rankingData;
 
 	if (councilType == COUNCIL_LIGHT)
@@ -1716,6 +1770,37 @@ bool FrsManagerImplementation::isEligibleForPromotion(CreatureObject* player, in
 		return false;
 
 	return skillManager->fulfillsSkillPrerequisitesAndXp(rankSkill, player);
+}
+
+int FrsManagerImplementation::getRequiredExperienceFloor(CreatureObject* player) {
+	PlayerObject* ghost = player->getPlayerObject();
+
+	if (ghost == nullptr)
+		return 0;
+
+	// NON-STOCK: both council ladders share one force_rank_xp pool, so spending
+	// experience must not drop it below the requirement of either rank held.
+	int floor = 0;
+	const short councils[] = { COUNCIL_LIGHT, COUNCIL_DARK };
+
+	for (int c = 0; c < 2; ++c) {
+		int rank = ghost->getFrsRankForCouncil(councils[c]);
+
+		if (rank < 0)
+			continue;
+
+		Reference<FrsRankingData*> rankingData = nullptr;
+
+		if (councils[c] == COUNCIL_LIGHT)
+			rankingData = lightRankingData.get(rank);
+		else
+			rankingData = darkRankingData.get(rank);
+
+		if (rankingData != nullptr)
+			floor = Math::max(floor, rankingData->getRequiredExperience());
+	}
+
+	return floor;
 }
 
 int FrsManagerImplementation::getVoteWeight(int playerRank, int voteRank) {
@@ -1848,9 +1933,9 @@ void FrsManagerImplementation::runChallengeVoteUpdate() {
 
 		Locker xlock(challenged, managerData);
 
-		FrsData* playerData = ghost->getFrsData();
-		int playerRank = playerData->getRank();
-		int councilType = playerData->getCouncilType();
+		// NON-STOCK: no-confidence challenges exist only for the Light council.
+		int playerRank = ghost->getFrsRankForCouncil(COUNCIL_LIGHT);
+		int councilType = (playerRank >= 0) ? (int) COUNCIL_LIGHT : 0;
 
 		ManagedReference<FrsManager*> strongRef = _this.getReferenceUnsafeStaticCast();
 		String challengedName = challenged->getFirstName();
@@ -1883,7 +1968,7 @@ void FrsManagerImplementation::runChallengeVoteUpdate() {
 				strongRef->sendChallengeVoteMail(challengedRank, "@force_rank:challenge_vote_success_sub", mailBody);
 
 				Locker locker(challenged);
-				strongRef->demotePlayer(challenged);
+				strongRef->demotePlayer(challenged, COUNCIL_LIGHT);
 			}, "ChallengeVoteMailTask");
 		} else {
 			Core::getTaskManager()->executeTask([strongRef, challengedRank, challengedName, yesVotes, noVotes] () {
@@ -1931,11 +2016,10 @@ void FrsManagerImplementation::runVotingUpdate(FrsRank* rankData) {
 			continue;
 		}
 
-		FrsData* playerData = ghost->getFrsData();
-		int playerRank = playerData->getRank();
-		int playerCouncil = playerData->getCouncilType();
+		// NON-STOCK: membership and rank of the council this rank list belongs to.
+		int playerRank = ghost->getFrsRankForCouncil(councilType);
 
-		if (playerCouncil != councilType) {
+		if (playerRank < 0) {
 			rankData->removeFromPlayerList(playerID);
 		} else if (playerRank != rank) {
 			ManagedReference<FrsManager*> strongMan = _this.getReferenceUnsafeStaticCast();
@@ -2184,8 +2268,8 @@ void FrsManagerImplementation::sendChallengeVoteSUI(CreatureObject* player, Scen
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
-	int playerRank = playerData->getRank();
+	// NON-STOCK: no-confidence challenges exist only for the Light council.
+	int playerRank = ghost->getFrsRankForCouncil(COUNCIL_LIGHT);
 	auto zoneServer = this->zoneServer.get();
 
 	ManagedReference<SuiListBox*> box = new SuiListBox(player, SuiWindowType::ENCLAVE_VOTING, SuiListBox::HANDLETWOBUTTON);
@@ -2273,8 +2357,8 @@ void FrsManagerImplementation::handleChallengeVoteIssueSui(CreatureObject* playe
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
-	int playerRank = playerData->getRank();
+	// NON-STOCK: no-confidence challenges exist only for the Light council.
+	int playerRank = ghost->getFrsRankForCouncil(COUNCIL_LIGHT);
 	auto zoneServer = this->zoneServer.get();
 
 	ManagedReference<CreatureObject*> challenged = zoneServer->getObject(challengedID).castTo<CreatureObject*>();
@@ -2298,8 +2382,7 @@ void FrsManagerImplementation::handleChallengeVoteIssueSui(CreatureObject* playe
 
 	Locker xlock(challenged, player);
 
-	FrsData* challengedData = challengedGhost->getFrsData();
-	int challengedRank = challengedData->getRank();
+	int challengedRank = challengedGhost->getFrsRankForCouncil(COUNCIL_LIGHT);
 
 	xlock.release();
 
@@ -2579,8 +2662,8 @@ void FrsManagerImplementation::sendVoteDemoteSui(CreatureObject* player, SceneOb
 
 	int demoteRank = rankData->getRank();
 
-	FrsData* playerData = ghost->getFrsData();
-	int playerRank = playerData->getRank();
+	// NON-STOCK: rank in the council that owns this terminal.
+	int playerRank = ghost->getFrsRankForCouncil(enclaveType);
 
 	int demoteTier = getRankTier(demoteRank);
 	int playerTier = getRankTier(playerRank);
@@ -2670,8 +2753,7 @@ void FrsManagerImplementation::handleVoteDemoteSui(CreatureObject* player, Scene
 		return;
 	}
 
-	FrsData* demotePlayerData = demoteGhost->getFrsData();
-	int demotePlayerRank = demotePlayerData->getRank();
+	int demotePlayerRank = demoteGhost->getFrsRankForCouncil(enclaveType);
 
 	if (demotePlayerRank != rank) {
 		player->sendSystemMessage("@force_rank:demote_player_changed_rank"); // That member's rank has changed since you have made your selection.
@@ -2691,9 +2773,9 @@ void FrsManagerImplementation::handleVoteDemoteSui(CreatureObject* player, Scene
 
 	int demoteRank = rankData->getRank();
 
-	FrsData* playerData = ghost->getFrsData();
-	int playerRank = playerData->getRank();
-	int councilType = playerData->getCouncilType();
+	// NON-STOCK: rank in the council that owns this terminal.
+	int playerRank = ghost->getFrsRankForCouncil(enclaveType);
+	int councilType = enclaveType;
 
 	int demoteTier = getRankTier(demoteRank);
 	int playerTier = getRankTier(playerRank);
@@ -2722,17 +2804,12 @@ void FrsManagerImplementation::handleVoteDemoteSui(CreatureObject* player, Scene
 	int curExperience = ghost->getExperience("force_rank_xp");
 	int demoteCost = requestDemotionCost * demotePlayerRank;
 
-	Reference<FrsRankingData*> rankingData = nullptr;
-
-	if (councilType == COUNCIL_LIGHT)
-		rankingData = lightRankingData.get(playerRank);
-	else if (councilType == COUNCIL_DARK)
-		rankingData = darkRankingData.get(playerRank);
-
-	if (rankingData == nullptr)
+	if (playerRank < 0)
 		return;
 
-	int rankXp = rankingData->getRequiredExperience();
+	// NON-STOCK: the cost must not push the shared force_rank_xp pool below the
+	// requirement of any rank the voter holds, in either council.
+	int rankXp = getRequiredExperienceFloor(player);
 	int availXp = curExperience - rankXp;
 
 	if (demoteCost > availXp) {
@@ -2748,9 +2825,9 @@ void FrsManagerImplementation::handleVoteDemoteSui(CreatureObject* player, Scene
 	ManagedReference<FrsManager*> strongMan = _this.getReferenceUnsafeStaticCast();
 	ManagedReference<CreatureObject*> strongRef = playerToDemote->asCreatureObject();
 
-	Core::getTaskManager()->executeTask([strongMan, strongRef] () {
+	Core::getTaskManager()->executeTask([strongMan, strongRef, councilType] () {
 		Locker locker(strongRef);
-		strongMan->demotePlayer(strongRef);
+		strongMan->demotePlayer(strongRef, councilType);
 	}, "DemotePlayerTask");
 
 	StringIdChatParameter param("@force_rank:demote_player_complete"); // You demote %TO.
@@ -2824,7 +2901,7 @@ short FrsManagerImplementation::getEnclaveType(BuildingObject* enclave) {
 	return 0;
 }
 
-void FrsManagerImplementation::recoverJediItems(CreatureObject* player) {
+void FrsManagerImplementation::recoverJediItems(CreatureObject* player, int councilType) {
 	if (player == nullptr)
 		return;
 
@@ -2833,9 +2910,8 @@ void FrsManagerImplementation::recoverJediItems(CreatureObject* player) {
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
-	int councilType = playerData->getCouncilType();
-	int curPlayerRank = playerData->getRank();
+	// NON-STOCK: robes are per council rank.
+	int curPlayerRank = ghost->getFrsRankForCouncil(councilType);
 
 	Reference<FrsRankingData*> rankingData = nullptr;
 
@@ -2905,14 +2981,8 @@ void FrsManagerImplementation::sendRankPlayerList(CreatureObject* player, int co
 		return;
 
 	if (!ghost->isPrivileged()) {
-		FrsData* playerData = ghost->getFrsData();
-		int playerCouncil = playerData->getCouncilType();
-		int curPlayerRank = playerData->getRank();
-
-		if (curPlayerRank < 0)
-			return;
-
-		if (playerCouncil != councilType)
+		// NON-STOCK: allowed for any member of the council being listed.
+		if (ghost->getFrsRankForCouncil(councilType) < 0)
 			return;
 	}
 
@@ -3045,8 +3115,8 @@ void FrsManagerImplementation::handleArenaChallengeViewSui(CreatureObject* playe
 
 		Locker xlck(challenger, player);
 
-		FrsData* playerData = cGhost->getFrsData();
-		int challengerRank = playerData->getRank();
+		// NON-STOCK: the arena belongs to the Dark council only.
+		int challengerRank = cGhost->getFrsRankForCouncil(COUNCIL_DARK);
 
 		xlck.release();
 
@@ -3172,7 +3242,7 @@ void FrsManagerImplementation::updateArenaScores() {
 
 					Core::getTaskManager()->executeTask([strongMan, player] () {
 						Locker locker(player);
-						strongMan->setPlayerRank(player, 0);
+						strongMan->setPlayerRank(player, COUNCIL_DARK, 0);
 					}, "SetPlayerRankTask");
 				}
 			}
@@ -3315,8 +3385,8 @@ void FrsManagerImplementation::performArenaMaintenance() {
 
 		Locker xlck(challenger, managerData);
 
-		FrsData* playerData = cGhost->getFrsData();
-		int challengerRank = playerData->getRank();
+		// NON-STOCK: the arena belongs to the Dark council only.
+		int challengerRank = cGhost->getFrsRankForCouncil(COUNCIL_DARK);
 
 		xlck.release();
 
@@ -3459,8 +3529,8 @@ bool FrsManagerImplementation::handleDarkCouncilDeath(CreatureObject* killer, Cr
 		strongKiller->sendPvpStatusTo(strongVictim);
 
 		if (challengerWon) {
-			strongMan->demotePlayer(strongVictim);
-			strongMan->promotePlayer(strongKiller);
+			strongMan->demotePlayer(strongVictim, COUNCIL_DARK);
+			strongMan->promotePlayer(strongKiller, COUNCIL_DARK);
 		}
 	}, "HandleDarkCouncilDeathXpTask");
 
@@ -3744,8 +3814,8 @@ void FrsManagerImplementation::sendArenaChallengeSUI(CreatureObject* player, Sce
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
-	int rank = playerData->getRank();
+	// NON-STOCK: the arena belongs to the Dark council only.
+	int rank = ghost->getFrsRankForCouncil(COUNCIL_DARK);
 	auto zoneServer = this->zoneServer.get();
 
 	Locker clocker(managerData, player);
@@ -3803,7 +3873,7 @@ void FrsManagerImplementation::sendArenaChallengeSUI(CreatureObject* player, Sce
 			return;
 		}
 
-		if (!isEligibleForPromotion(player, rank + 1)) {
+		if (!isEligibleForPromotion(player, COUNCIL_DARK, rank + 1)) {
 			player->sendSystemMessage("@pvp_rating:ch_terminal_notenoughexp"); // You do not currently qualify for a promotion into the next rank.
 			return;
 		}
@@ -3884,8 +3954,7 @@ void FrsManagerImplementation::sendArenaChallengeSUI(CreatureObject* player, Sce
 
 			Locker xlck(challenger, player);
 
-			FrsData* playerData = cGhost->getFrsData();
-			int challengerRank = playerData->getRank();
+			int challengerRank = cGhost->getFrsRankForCouncil(COUNCIL_DARK);
 
 			xlck.release();
 
@@ -3960,8 +4029,8 @@ void FrsManagerImplementation::handleArenaChallengeIssueSui(CreatureObject* play
 	if (ghost == nullptr)
 		return;
 
-	FrsData* playerData = ghost->getFrsData();
-	int rank = playerData->getRank();
+	// NON-STOCK: the arena belongs to the Dark council only.
+	int rank = ghost->getFrsRankForCouncil(COUNCIL_DARK);
 
 	if (rank < 1 || rank > 10) {
 		player->sendSystemMessage("@pvp_rating:ch_terminal_cant_challenge_rank_bounds"); // You may not issue challenges at your current rank level.
@@ -3980,7 +4049,7 @@ void FrsManagerImplementation::handleArenaChallengeIssueSui(CreatureObject* play
 
 	clocker.release();
 
-	if (!isEligibleForPromotion(player, rank + 1)) {
+	if (!isEligibleForPromotion(player, COUNCIL_DARK, rank + 1)) {
 		player->sendSystemMessage("@pvp_rating:ch_terminal_notenoughexp"); // You do not currently qualify for a promotion into the next rank.
 		return;
 	}
@@ -4032,8 +4101,8 @@ bool FrsManagerImplementation::canPlayerAcceptArenaChallenge(CreatureObject* pla
 	if (ghost == nullptr)
 		return false;
 
-	FrsData* frsData = ghost->getFrsData();
-	int playerRank = frsData->getRank();
+	// NON-STOCK: the arena belongs to the Dark council only.
+	int playerRank = ghost->getFrsRankForCouncil(COUNCIL_DARK);
 
 	return playerRank > 1 && getTotalOpenArenaChallenges(playerRank) > 0 && !hasPlayerAcceptedArenaChallenge(player) && !managerData->hasOpenArenaChallenge(player->getObjectID());
 }
@@ -4046,10 +4115,10 @@ bool FrsManagerImplementation::canPlayerIssueArenaChallenge(CreatureObject* play
 	if (ghost == nullptr)
 		return false;
 
-	FrsData* frsData = ghost->getFrsData();
-	int playerRank = frsData->getRank();
+	// NON-STOCK: the arena belongs to the Dark council only.
+	int playerRank = ghost->getFrsRankForCouncil(COUNCIL_DARK);
 
-	return playerRank > 0 && playerRank < 11 && getArenaStatus() == FrsManager::ARENA_OPEN && isEligibleForPromotion(player, playerRank + 1) && playerAbleToChallenge(player);
+	return playerRank > 0 && playerRank < 11 && getArenaStatus() == FrsManager::ARENA_OPEN && isEligibleForPromotion(player, COUNCIL_DARK, playerRank + 1) && playerAbleToChallenge(player);
 }
 
 void FrsManagerImplementation::forceArenaOpen(CreatureObject* player) {
@@ -4158,8 +4227,8 @@ void FrsManagerImplementation::handleSuddenDeathLoss(CreatureObject* player, Thr
 
 	Locker locker(player);
 
-	FrsData* playerData = ghost->getFrsData();
-	int curRank = playerData->getRank();
+	// NON-STOCK: the arena belongs to the Dark council only.
+	int curRank = ghost->getFrsRankForCouncil(COUNCIL_DARK);
 
 	locker.release();
 
