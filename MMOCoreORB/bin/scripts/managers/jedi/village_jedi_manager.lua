@@ -100,15 +100,22 @@ end
 
 --Check for force skill prerequisites
 function VillageJediManager:canLearnSkill(pPlayer, skillName)
-	if string.find(skillName, "force_sensitive") ~= nil then
-		local index = string.find(skillName, "0")
-		if index ~= nil then
-			local skillNameFinal = string.sub(skillName, 1, string.len(skillName) - 3)
-			if CreatureObject(pPlayer):getScreenPlayState("VillageUnlockScreenPlay:" .. skillNameFinal) < 2 then
-				return false
-			end
-		end
-	end
+	-- NON-STOCK: stock Core3 refuses any Force Sensitive box numbered _01 to _04
+	-- until that branch has been unlocked in the village, i.e. until the player
+	-- holds screenplay state 2 on VillageUnlockScreenPlay:<branch>. Removed so FS
+	-- boxes can be trained from trainers and the character builder directly. The
+	-- village quests still run and still record unlocks; they are just no longer
+	-- required. The rank checks below are unchanged.
+	--
+	-- if string.find(skillName, "force_sensitive") ~= nil then
+	-- 	local index = string.find(skillName, "0")
+	-- 	if index ~= nil then
+	-- 		local skillNameFinal = string.sub(skillName, 1, string.len(skillName) - 3)
+	-- 		if CreatureObject(pPlayer):getScreenPlayState("VillageUnlockScreenPlay:" .. skillNameFinal) < 2 then
+	-- 			return false
+	-- 		end
+	-- 	end
+	-- end
 
 	if skillName == "force_title_jedi_rank_01" and CreatureObject(pPlayer):getForceSensitiveSkillCount(false) < 24 then
 		return false
