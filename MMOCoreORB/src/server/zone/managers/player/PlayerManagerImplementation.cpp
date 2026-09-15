@@ -4415,7 +4415,11 @@ int PlayerManagerImplementation::calculatePlayerLevel(CreatureObject* player) {
 	if (player->getPlayerObject() != nullptr && player->getPlayerObject()->isJedi() && weapon->isJediWeapon())
 		skillMod += player->getSkillMod("private_jedi_difficulty");
 
-	int level = Math::min(25, skillMod / 100 + 1);
+	// NON-STOCK: stock Core3 caps combat level at 25 here. Uncapped so characters
+	// with many mastered weapon lines keep rising. This level feeds the per-kill XP
+	// cap (level * 300), creature aggro (10+ levels above a creature avoids
+	// detection), lair and mission difficulty, and state resistance.
+	int level = skillMod / 100 + 1;
 
 	return level;
 }
@@ -4442,7 +4446,8 @@ int PlayerManagerImplementation::calculatePlayerLevel(CreatureObject* player, St
 	else
 		weaponType = "heavyweapon";
 
-	int level = Math::min(25, player->getSkillMod("private_" + weaponType + "_combat_difficulty") / 100 + 1);
+	// NON-STOCK: uncapped, see the weapon-based overload above.
+	int level = player->getSkillMod("private_" + weaponType + "_combat_difficulty") / 100 + 1;
 
 	return level;
 }

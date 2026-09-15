@@ -50,6 +50,17 @@ constexpr float PLAYER_RUN_SPEED_MULTIPLIER = 2.f;
  */
 constexpr float VEHICLE_SPEED_MULTIPLIER = 4.f;
 
+/*
+ * Maximum absorption percentage against damage-over-time effects: bleeding, fire,
+ * poison and disease. Stock Core3 caps this at 50, so every DoT always did at
+ * least half damage. At 100 enough absorption makes a character immune.
+ *
+ * Do not raise this above 100. DamageOverTime computes
+ * (uint32)(strength * (1 - absorption / 100)), so a negative factor wraps around
+ * to an enormous unsigned value instead of zero damage.
+ */
+constexpr int DOT_MAX_ABSORPTION = 100;
+
 } // namespace zone
 } // namespace server
 
