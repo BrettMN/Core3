@@ -771,7 +771,7 @@ function recruiterScreenplay:handleGoOnLeave(pPlayer)
 		return
 	end
 
-	if (CreatureObject(pPlayer):hasSkill("force_rank_light_novice") or CreatureObject(pPlayer):hasSkill("force_rank_dark_novice")) then
+	if (recruiterScreenplay:isFrsLockedToOvert(pPlayer)) then
 		CreatureObject(pPlayer):sendSystemMessage("@faction_recruiter:jedi_cant_resign")
 		return
 	end
@@ -780,12 +780,34 @@ function recruiterScreenplay:handleGoOnLeave(pPlayer)
 	CreatureObject(pPlayer):setFactionStatus(0)
 end
 
+-- NON-STOCK: Force Ranking System members are locked to overt and cannot go
+-- covert, go on leave or resign. A member of both councils is exempt, because the
+-- Light and Dark councils force opposite factions, so neither is enforced for them.
+function recruiterScreenplay:isFrsLockedToOvert(pPlayer)
+	local creature = CreatureObject(pPlayer)
+
+	if not (creature:hasSkill("force_rank_light_novice") or creature:hasSkill("force_rank_dark_novice")) then
+		return false
+	end
+
+	local pGhost = creature:getPlayerObject()
+
+	if (pGhost == nil) then
+		return true
+	end
+
+	local ghost = PlayerObject(pGhost)
+	local dualMember = ghost:getFrsRank(JediTrials.COUNCIL_LIGHT) >= 0 and ghost:getFrsRank(JediTrials.COUNCIL_DARK) >= 0
+
+	return not dualMember
+end
+
 function recruiterScreenplay:handleGoCovert(pPlayer)
 	if (pPlayer == nil) then
 		return
 	end
 
-	if (CreatureObject(pPlayer):hasSkill("force_rank_light_novice") or CreatureObject(pPlayer):hasSkill("force_rank_dark_novice")) then
+	if (recruiterScreenplay:isFrsLockedToOvert(pPlayer)) then
 		CreatureObject(pPlayer):sendSystemMessage("@faction_recruiter:jedi_cant_go_covert")
 		return
 	end
@@ -804,7 +826,7 @@ function recruiterScreenplay:handleResign(pPlayer)
 		return
 	end
 
-	if (CreatureObject(pPlayer):hasSkill("force_rank_light_novice") or CreatureObject(pPlayer):hasSkill("force_rank_dark_novice")) then
+	if (recruiterScreenplay:isFrsLockedToOvert(pPlayer)) then
 		CreatureObject(pPlayer):sendSystemMessage("@faction_recruiter:jedi_cant_resign")
 		return
 	end
