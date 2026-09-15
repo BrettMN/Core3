@@ -860,6 +860,7 @@ bool SkillManager::canLearnSkill(const String& skillName, CreatureObject* creatu
 	Skill* skill = skillMap.get(skillName.hashCode());
 
 	if (skill == nullptr) {
+		creature->info(true) << "SKILLDIAG " << skillName << " refused: unknown skill";
 		return false;
 	}
 
@@ -869,6 +870,7 @@ bool SkillManager::canLearnSkill(const String& skillName, CreatureObject* creatu
 	}
 
 	if (!fulfillsSkillPrerequisites(skillName, creature)) {
+		creature->info(true) << "SKILLDIAG " << skillName << " refused: prerequisites";
 		return false;
 	}
 
@@ -883,6 +885,8 @@ bool SkillManager::canLearnSkill(const String& skillName, CreatureObject* creatu
 
 		//Check if player has enough skill points to learn the skill.
 		if (ghost->getSkillPoints() < skill->getSkillPointsRequired()) {
+			creature->info(true) << "SKILLDIAG " << skillName << " refused: skill points have=" << ghost->getSkillPoints()
+				<< " cost=" << skill->getSkillPointsRequired() << " max=" << maxSkillPoints;
 			return false;
 		}
 	} else {
