@@ -497,17 +497,16 @@ void FrsManagerImplementation::validatePlayerData(CreatureObject* player, bool v
 			setPlayerRank(player, councilType, realPlayerRank);
 		}
 
-		// NON-STOCK: a council forces its faction (Light: Rebel, Dark: Imperial) and
-		// overt status. Those contradict each other for a member of both councils,
-		// so faction and status are left to the player in that case.
+		// NON-STOCK: a council forces its faction (Light: Rebel, Dark: Imperial).
+		// Those contradict each other for a member of both councils, so faction is
+		// left to the player in that case. Stock also forced every member back to
+		// overt on each login; that is removed so Force-sensitive characters can stay
+		// covert or on leave.
 		if (!ghost->isDualFrsMember()) {
 			if (councilType == COUNCIL_LIGHT && player->getFaction() != Factions::FACTIONREBEL)
 				player->setFaction(Factions::FACTIONREBEL);
 			else if (councilType == COUNCIL_DARK && player->getFaction() != Factions::FACTIONIMPERIAL)
 				player->setFaction(Factions::FACTIONIMPERIAL);
-
-			if (player->getFactionStatus() != FactionStatus::OVERT)
-				player->setFactionStatus(FactionStatus::OVERT);
 		}
 
 		if (realPlayerRank >= 4 && !player->hasSkill("force_title_jedi_rank_04"))

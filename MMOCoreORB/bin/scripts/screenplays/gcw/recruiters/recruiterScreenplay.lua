@@ -780,26 +780,14 @@ function recruiterScreenplay:handleGoOnLeave(pPlayer)
 	CreatureObject(pPlayer):setFactionStatus(0)
 end
 
--- NON-STOCK: Force Ranking System members are locked to overt and cannot go
--- covert, go on leave or resign. A member of both councils is exempt, because the
--- Light and Dark councils force opposite factions, so neither is enforced for them.
+-- NON-STOCK: stock Core3 locks Force Ranking System members to overt, refusing
+-- covert, on leave and resign for anyone holding an FRS novice rank skill. Every
+-- Force-sensitive character may now change status freely. Kept as a function so
+-- the nine recruiter checks stay in one place; return the commented expression to
+-- restore the stock lock.
 function recruiterScreenplay:isFrsLockedToOvert(pPlayer)
-	local creature = CreatureObject(pPlayer)
-
-	if not (creature:hasSkill("force_rank_light_novice") or creature:hasSkill("force_rank_dark_novice")) then
-		return false
-	end
-
-	local pGhost = creature:getPlayerObject()
-
-	if (pGhost == nil) then
-		return true
-	end
-
-	local ghost = PlayerObject(pGhost)
-	local dualMember = ghost:getFrsRank(JediTrials.COUNCIL_LIGHT) >= 0 and ghost:getFrsRank(JediTrials.COUNCIL_DARK) >= 0
-
-	return not dualMember
+	-- return CreatureObject(pPlayer):hasSkill("force_rank_light_novice") or CreatureObject(pPlayer):hasSkill("force_rank_dark_novice")
+	return false
 end
 
 function recruiterScreenplay:handleGoCovert(pPlayer)
