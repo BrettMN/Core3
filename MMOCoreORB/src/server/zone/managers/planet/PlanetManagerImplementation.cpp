@@ -546,6 +546,51 @@ void PlanetManagerImplementation::loadTravelFares() {
 		}
 	}
 
+	// NON-STOCK: every planet can travel directly to every other planet.
+	// The client travel.iff is hub-and-spoke: 33 of the 45 planet pairs have a
+	// fare of 0, which PurchaseTicketCommand rejects as an invalid route (for
+	// example Dantooine, Dathomir and Yavin 4 connect only to Corellia). Fill each
+	// missing route with the cheapest fare through one connecting planet, so prices
+	// stay consistent with the stock table. Routes that exist are left unchanged.
+	int filledRoutes = 0;
+
+	for (int i = 0; i < travelFares.size(); ++i) {
+		const String& departure = travelFares.elementAt(i).getKey();
+
+		for (int j = i + 1; j < travelFares.size(); ++j) {
+			const String& arrival = travelFares.elementAt(j).getKey();
+
+			if (travelFares.get(departure).get(arrival) > 0)
+				continue;
+
+			int cheapest = 0;
+
+			for (int k = 0; k < travelFares.size(); ++k) {
+				const String& via = travelFares.elementAt(k).getKey();
+
+				if (via == departure || via == arrival)
+					continue;
+
+				int firstLeg = travelFares.get(departure).get(via);
+				int secondLeg = travelFares.get(via).get(arrival);
+
+				if (firstLeg <= 0 || secondLeg <= 0)
+					continue;
+
+				if (cheapest == 0 || firstLeg + secondLeg < cheapest)
+					cheapest = firstLeg + secondLeg;
+			}
+
+			if (cheapest > 0) {
+				travelFares.get(departure).put(arrival, cheapest);
+				travelFares.get(arrival).put(departure, cheapest);
+				++filledRoutes;
+			}
+		}
+	}
+
+	info(true) << "Filled " << filledRoutes << " missing interplanetary travel routes.";
+
 	info("Loaded travel fares to " + String::valueOf(travelFares.size()) + " planets.");
 }
 
