@@ -4242,7 +4242,7 @@ object_tangible_terminal_terminal_character_builder = object_tangible_terminal_s
 					--"Organic Survey Tool", "object/tangible/survey_tool/survey_tool_organic.iff",
 					"Solar Survey Tool", "object/tangible/survey_tool/survey_tool_solar.iff",
 					"Wind Survey Tool", "object/tangible/survey_tool/survey_tool_wind.iff"
-				}
+				},
 				"Repair Tools",
 				{
 					"Armor Repair", "object/tangible/crafting/station/armor_repair.iff",
@@ -4382,7 +4382,7 @@ object_tangible_terminal_terminal_character_builder = object_tangible_terminal_s
 				"Light Jedi Holocron", "object/tangible/jedi/jedi_holocron_light.iff",
 				"Dark Jedi Holocron (gift)", "object/tangible/jedi/no_drop_jedi_holocron_dark.iff",
 				"Light Jedi Holocron (gift)", "object/tangible/jedi/no_drop_jedi_holocron_light.iff"
-			}
+			},
 			"Village Testing (Temporary)",
 			{
 				"Resources",
