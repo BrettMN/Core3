@@ -30,7 +30,10 @@ class ResourceManager extends Observer implements Logger {
 	private transient ResourceSpawner resourceSpawner;
 	private transient int shiftInterval;
 	
-	public static final int RESOURCE_DEED_QUANTITY = 30000;
+	// NON-STOCK: stock 30000. Must not exceed ResourceContainer::MAXSIZE:
+	// givePlayerResource creates the stack before it is placed in the inventory, so
+	// any overflow split off by ResourceContainer::setQuantity would have no parent.
+	public static final int RESOURCE_DEED_QUANTITY = 1000000;
 	
 	public ResourceManager(ZoneServer server, ZoneProcessServer impl) {
 

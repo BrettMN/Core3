@@ -17,7 +17,10 @@ class ResourceContainer extends TangibleObject {
 	protected ResourceSpawn spawnObject;
 	protected int stackQuantity;
 
-	public static final int MAXSIZE = 100000;
+	// NON-STOCK: stock 100000. Every stack size check (splitting, merging,
+	// harvester hopper emptying, spawner extraction) and the max stack size sent to
+	// the client in RCNO6 all read this constant.
+	public static final int MAXSIZE = 1000000;
 
 	public ResourceContainer() {
 		stackQuantity = 0;
